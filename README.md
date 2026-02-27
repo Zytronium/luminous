@@ -4,4 +4,3 @@ The exclusive chat app for students and graduates of [Atlas School](https://www.
 ### Contributors
 - "Zytronium" | [GitHub](https://github.com/zytronium) | Front-end Designer, Back-end Developer, Project Lead
 - Anonymous | No GitHub | Database Developer, Cyber Security Expert
-- Linux Torvalds | Find it yourself | Build the Linux kernel this was developed on
