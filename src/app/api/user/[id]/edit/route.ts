@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params; // user id
+    const { id } = await params; // user id
     const { user } = await request.json();
     // TODO: add more body params (display name, avatar, about, etc.)
 
