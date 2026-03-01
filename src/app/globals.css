@@ -31,7 +31,7 @@
 
 body {
   font-family: 'Galano-Grotesque', Arial, Helvetica, sans-serif;
-  @apply bg-beige dark:bg-dark-blue text-darker-blue dark:text-offwhite flex flex-col items-center p-2
+  @apply bg-beige dark:bg-darker-blue text-darker-blue dark:text-offwhite flex flex-col items-center p-2 h-screen
 }
 
 a {
