@@ -101,11 +101,11 @@ function LumiLogo() {
         <Image src={'/logo.png'} alt={""} width={18} height={18} className="w-9 h-9 aspect-square" />
       </div>
       <span
+        className="text-teal dark:text-darker-blue"
         style={{
           fontFamily: "Galano-Grotesque, Arial, sans-serif",
           fontWeight: 700,
           fontSize: "1.2rem",
-          color: "#54f4d0",
           letterSpacing: "-0.03em",
           textShadow: "0 0 16px #54f4d055",
         }}
