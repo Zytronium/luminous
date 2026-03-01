@@ -33,3 +33,23 @@ body {
   font-family: 'Galano-Grotesque', Arial, Helvetica, sans-serif;
   @apply bg-beige dark:bg-dark-blue text-darker-blue dark:text-offwhite flex flex-col items-center p-2
 }
+
+a {
+  @apply text-teal
+}
+
+.button {
+  @apply rounded-2xl bg-teal text-darker-blue px-4 py-2
+}
+
+.btn-primary {
+  @apply bg-teal text-darker-blue
+}
+
+.btn-secondary {
+  @apply bg-darker-blue text-teal
+}
+
+.btn-tertiary {
+  @apply bg-red text-offwhite
+}
