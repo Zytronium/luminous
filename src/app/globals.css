@@ -6,6 +6,13 @@
   --foreground: #00002e;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #00003c;
+    --foreground: #fef9e6;
+  }
+}
+
 @theme inline {
   --color-neon-teal:   #54f4d0;
   --color-teal:        #1ED2AF;
@@ -24,6 +31,5 @@
 
 body {
   font-family: 'Galano-Grotesque', Arial, Helvetica, sans-serif;
-
   @apply bg-beige dark:bg-dark-blue text-darker-blue dark:text-offwhite flex flex-col items-center p-2
 }
