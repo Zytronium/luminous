@@ -211,7 +211,7 @@ export default function Page() {
 
         {/* ── Sidebar ── */}
         <aside
-          className="flex-shrink-0 bg-[#00001e] dark:bg-[#e8e0c8] border-r border-teal/10 flex flex-col gap-5"
+          className="flex-shrink-0 bg-[#00001e] dark:bg-[#e8e0c8] border-r border-teal/10 flex flex-col gap-5 rounded-r-4xl"
           style={{ width: 260, padding: "20px 12px" }}
         >
           {/* Logo + theme toggle */}
