@@ -14,6 +14,7 @@ import {
   SendHorizonal,
   Sun,
   Moon,
+  Monitor,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -168,13 +169,73 @@ function Avatar({
   );
 }
 
+type Theme = "light" | "system" | "dark";
+
+const THEME_OPTIONS: { value: Theme; icon: typeof Sun; label: string }[] = [
+  { value: "light", icon: Sun, label: "Light" },
+  { value: "system", icon: Monitor, label: "System" },
+  { value: "dark", icon: Moon, label: "Dark" },
+];
+
+function ThemeSwitcher({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) {
+  return (
+    <div
+      className="flex items-center rounded-full border border-teal/20 overflow-hidden"
+      style={{ background: "rgba(0,0,97,0.25)", padding: 2, gap: 1 }}
+    >
+      {THEME_OPTIONS.map(({ value, icon: Icon, label }) => {
+        const active = theme === value;
+        return (
+          <button
+            key={value}
+            onClick={() => setTheme(value)}
+            title={label}
+            className={`flex items-center justify-center rounded-full transition-all duration-200 cursor-pointer ${
+              active ? "bg-teal text-darker-blue" : "text-teal/50 hover:text-teal/80"
+            }`}
+            style={{
+              width: 24,
+              height: 24,
+              border: "none",
+              background: active ? undefined : "none",
+              flexShrink: 0,
+            }}
+          >
+            <Icon size={12} strokeWidth={2.5} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Page() {
   const [activeChannel, setActiveChannel] = useState("general");
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [sidebarSection, setSidebarSection] = useState<"channels" | "dms">("channels");
-  const [darkMode, setDarkMode] = useState(true);
+  const [theme, setTheme] = useState<Theme>("system");
+  const [systemDark, setSystemDark] = useState(false);
+  const darkMode = theme === "dark" || (theme === "system" && systemDark);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    setSystemDark(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => {
+      mq.removeEventListener("change", handler);
+      // Restore system preference when leaving this page
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.classList.toggle("dark", prefersDark);
+    };
+  }, []);
+
+  // Apply theme to <html> directly so it doesn't fight with the layout script
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -201,10 +262,7 @@ export default function Page() {
     CHANNELS.find((c) => c.id === activeChannel)?.name ?? activeChannel;
 
   return (
-    // Wrapping in a div with `dark` class makes all `dark:` Tailwind variants apply
-    // based on this state toggle rather than the OS preference.
     <div
-      className={darkMode ? "dark" : ""}
       style={{ width: "100vw", height: "100vh", position: "fixed", top: 0, left: 0, fontFamily: "Galano-Grotesque, Arial, sans-serif" }}
     >
       <div className="w-full h-full flex bg-beige dark:bg-darker-blue overflow-hidden">
@@ -217,14 +275,7 @@ export default function Page() {
           {/* Logo + theme toggle */}
           <div className="flex items-center justify-between" style={{ padding: "0 8px" }}>
             <LumiLogo />
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-              className="flex items-center justify-center rounded-full border border-teal/20 bg-blue/20 dark:bg-beige/60 text-teal hover:opacity-80 transition-opacity cursor-pointer"
-              style={{ width: 30, height: 30, flexShrink: 0, background: "none" }}
-            >
-              {darkMode ? <Sun size={14} strokeWidth={2} /> : <Moon size={14} strokeWidth={2} />}
-            </button>
+            <ThemeSwitcher theme={theme} setTheme={setTheme} />
           </div>
 
           {/* Search */}

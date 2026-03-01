@@ -12,12 +12,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={'antialiased'}
-      >
-        {children}
-      </body>
+    <html lang="en" suppressHydrationWarning>
+    <head>
+      <script dangerouslySetInnerHTML={{
+        __html: `
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (dark) document.documentElement.classList.add('dark');
+  `
+      }} />
+    </head>
+    <body
+      className={'antialiased'}
+    >
+    {children}
+    </body>
     </html>
   );
 }
