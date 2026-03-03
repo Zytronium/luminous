@@ -177,7 +177,7 @@ export default function Home() {
             >
               Sign In / Join
             </Link>
-            <GhostButton href="/chat">Preview UI</GhostButton>
+            <GhostButton href="/chat">Preview Chat</GhostButton>
           </div>
         </div>
       </div>

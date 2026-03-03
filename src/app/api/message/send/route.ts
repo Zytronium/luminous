@@ -1,79 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { user, message, channelId, replyTo, replyPing } = body;
+export async function POST(req: NextRequest) {
+  const supabase = await createSupabaseServerClient();
 
-    // validate user
-    if (!user) {
-      return NextResponse.json(
-        { error: "user is required" },
-        { status: 400 }
-      )
-    }
-    // TODO: validate user is a valid ID
-    // TODO: Authenticate user
+  const token = req.headers.get("authorization")?.replace("Bearer ", "");
+  if (!token)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // validate message
-    const message_validation = validate_message(message);
-    if (message_validation !== true) {
-      return message_validation;
-    }
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !user)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // validate channelId
-    if (!channelId) {
-      return NextResponse.json(
-        { error: "channelId is required" },
-        { status: 400 }
-      )
-    }
-    // TODO: validate channelId is a valid ID
+  const { channelId, content, repliesTo } = await req.json();
+  if (!channelId || !content?.trim())
+    return NextResponse.json({ error: "channelId and content are required" }, { status: 400 });
 
-    // TODO: validate replyTo by making sure it's a valid message id in the same channel
+  const { error } = await supabase.from("messages").insert({
+    channel_id: channelId,
+    user_id: user.id,
+    content: content.trim(),
+    replies_to: repliesTo ?? null,
+  });
 
-    // validate replyPing
-    if (replyTo && !replyPing) {
-      return NextResponse.json(
-        { error: "replyPing is required when replyTo is specified"},
-        { status: 400 }
-      )
-    }
+  if (error)
+    return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json(
-      { message: "Valid request; Route not fully implemented yet" },
-      { status: 501 }
-    );
-  } catch (_) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-
-  function validate_message(message: string) {
-    if (!message) {
-      return NextResponse.json(
-        { error: "message is required" },
-        { status: 400 }
-      )
-    }
-
-    if (message.trim().length > 4096) {
-      return NextResponse.json(
-        { error: "message cannot be longer than 4096 bytes" },
-        { status: 400 }
-      )
-    }
-
-    if (message.trim().length == 0) {
-      return NextResponse.json(
-        { error: "message cannot be empty" },
-        { status: 400 }
-      )
-    }
-
-    return true;
-  }
-
+  return NextResponse.json({ ok: true }, { status: 201 });
 }
