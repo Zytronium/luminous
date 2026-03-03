@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-type Channel = { id: string; name: string };
+type Channel = { id: string; name: string; description: string };
 
 type SidebarProps = {
   channels: Channel[];
@@ -44,8 +44,8 @@ function Logo() {
 function UserStrip({ user }: { user: { displayName: string } }) {
   return (
     <div className="flex items-center gap-2 px-1 py-1.5">
-      <div className="w-8 h-8 rounded-full bg-darker-blue/75 flex items-center justify-center flex-shrink-0">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-neon-teal">
+      <div className="w-8 h-8 rounded-full bg-blue flex items-center justify-center flex-shrink-0">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-neon-teal">
           <circle cx="12" cy="8" r="4" fill="currentColor" />
           <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" fill="currentColor" />
         </svg>
