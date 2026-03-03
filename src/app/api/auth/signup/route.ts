@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
+      console.error("Supabase signup error:", error.message, error.status);
       // Surface duplicate email clearly
       if (error.message.toLowerCase().includes("already registered")) {
         return NextResponse.json(

@@ -3,11 +3,16 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 type Mode = "login" | "signup";
 type Status = { type: "error" | "success"; message: string } | null;
 
 export default function AuthPage() {
+  const { setAuth } = useAuth();
+  const router = useRouter();
+
   const [mode, setMode] = useState<Mode>("login");
   const [status, setStatus] = useState<Status>(null);
   const [loading, setLoading] = useState(false);
@@ -38,8 +43,9 @@ export default function AuthPage() {
       if (!res.ok) {
         setStatus({ type: "error", message: data.error });
       } else {
+        setAuth(data.user, data.session);
         setStatus({ type: "success", message: "Signed in! Redirecting..." });
-        window.location.href = "/chat";
+        router.push("/chat");
       }
     } catch {
       setStatus({ type: "error", message: "Something went wrong. Try again." });
@@ -130,13 +136,11 @@ export default function AuthPage() {
 
         {/* Status banner */}
         {status && (
-          <div
-            className={`rounded-2xl px-4 py-3 text-sm font-medium text-center ${
+          <div className={`rounded-2xl px-4 py-3 text-sm font-medium text-center ${
               status.type === "error"
                 ? "bg-red/10 text-red border-2 border-red"
                 : "bg-teal/10 text-teal border-2 border-teal"
-            }`}
-          >
+          }`}>
             {status.message}
           </div>
         )}
@@ -144,28 +148,14 @@ export default function AuthPage() {
         {/* Login Form */}
         {mode === "login" && (
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            <Field
-              label="Atlas Email"
-              type="email"
-              placeholder="you@atlasstudents.com"
-              value={loginEmail}
-              onChange={setLoginEmail}
-              required
-            />
-            <Field
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              value={loginPassword}
-              onChange={setLoginPassword}
-              required
-            />
+            <Field label="Atlas Email" type="email" placeholder="you@atlasstudents.com"
+              value={loginEmail} onChange={setLoginEmail} required />
+            <Field label="Password" type="password" placeholder="••••••••"
+              value={loginPassword} onChange={setLoginPassword} required />
             <SubmitButton loading={loading} label="Sign In" />
             <p className="text-center text-xs text-darker-blue/50 dark:text-offwhite/50">
               Forgot your password?{" "}
-              <span className="text-teal cursor-pointer hover:underline">
-                Reset it
-              </span>
+              <span className="text-teal cursor-pointer hover:underline">Reset it</span>
             </p>
           </form>
         )}
@@ -173,39 +163,15 @@ export default function AuthPage() {
         {/* Signup Form */}
         {mode === "signup" && (
           <form onSubmit={handleSignup} className="flex flex-col gap-4">
-            <Field
-              label="Display Name"
-              type="text"
-              placeholder="Your name"
-              value={signupDisplay}
-              onChange={setSignupDisplay}
-              required
-            />
-            <Field
-              label="Atlas Email"
-              type="email"
-              placeholder="you@atlasstudents.com"
-              value={signupEmail}
-              onChange={setSignupEmail}
-              required
-              hint="Must be an @atlasstudents.com address"
-            />
-            <Field
-              label="Password"
-              type="password"
-              placeholder="At least 8 characters"
-              value={signupPassword}
-              onChange={setSignupPassword}
-              required
-            />
-            <Field
-              label="Confirm Password"
-              type="password"
-              placeholder="••••••••"
-              value={signupConfirm}
-              onChange={setSignupConfirm}
-              required
-            />
+            <Field label="Display Name" type="text" placeholder="Your name"
+              value={signupDisplay} onChange={setSignupDisplay} required />
+            <Field label="Atlas Email" type="email" placeholder="you@atlasstudents.com"
+              value={signupEmail} onChange={setSignupEmail} required
+              hint="Must be an @atlasstudents.com address" />
+            <Field label="Password" type="password" placeholder="At least 8 characters"
+              value={signupPassword} onChange={setSignupPassword} required />
+            <Field label="Confirm Password" type="password" placeholder="••••••••"
+              value={signupConfirm} onChange={setSignupConfirm} required />
 
             {/* Secondary email toggle */}
             <div className="flex flex-col gap-2">
@@ -217,14 +183,9 @@ export default function AuthPage() {
                 {showSecondary ? "− Remove backup email" : "+ Add a backup email (optional)"}
               </button>
               {showSecondary && (
-                <Field
-                  label="Backup Email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={signupSecondary}
-                  onChange={setSignupSecondary}
-                  hint="Used if your Atlas email ever becomes inaccessible. Will be verified separately."
-                />
+                <Field label="Backup Email" type="email" placeholder="you@example.com"
+                  value={signupSecondary} onChange={setSignupSecondary}
+                  hint="Used if your Atlas email ever becomes inaccessible. Will be verified separately." />
               )}
             </div>
 
@@ -244,22 +205,9 @@ export default function AuthPage() {
 }
 
 // --- Reusable field component ---
-function Field({
-  label,
-  type,
-  placeholder,
-  value,
-  onChange,
-  required,
-  hint,
-}: {
-  label: string;
-  type: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  required?: boolean;
-  hint?: string;
+function Field({ label, type, placeholder, value, onChange, required, hint }: {
+  label: string; type: string; placeholder: string; value: string;
+  onChange: (v: string) => void; required?: boolean; hint?: string;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -267,41 +215,19 @@ function Field({
         {label}
       </label>
       <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        className="
-          w-full px-4 py-2.5 rounded-2xl
-          bg-beige dark:bg-darker-blue
-          border-2 border-darker-blue/20 dark:border-offwhite/20
-          focus:border-teal focus:outline-none
-          text-darker-blue dark:text-offwhite
-          placeholder:text-darker-blue/30 dark:placeholder:text-offwhite/30
-          transition-colors
-        "
+        type={type} placeholder={placeholder} value={value}
+        onChange={(e) => onChange(e.target.value)} required={required}
+        className="w-full px-4 py-2.5 rounded-2xl bg-beige dark:bg-darker-blue border-2 border-darker-blue/20 dark:border-offwhite/20 focus:border-teal focus:outline-none text-darker-blue dark:text-offwhite placeholder:text-darker-blue/30 dark:placeholder:text-offwhite/30 transition-colors"
       />
-      {hint && (
-        <p className="text-xs text-darker-blue/40 dark:text-offwhite/40 pl-1">{hint}</p>
-      )}
+      {hint && <p className="text-xs text-darker-blue/40 dark:text-offwhite/40 pl-1">{hint}</p>}
     </div>
   );
 }
 
 function SubmitButton({ loading, label }: { loading: boolean; label: string }) {
   return (
-    <button
-      type="submit"
-      disabled={loading}
-      className="
-        w-full py-3 rounded-2xl font-bold
-        bg-teal text-darker-blue
-        hover:brightness-110 active:scale-95
-        transition-all disabled:opacity-50 disabled:cursor-not-allowed
-        mt-1
-      "
-    >
+    <button type="submit" disabled={loading}
+      className="w-full py-3 rounded-2xl font-bold bg-teal text-darker-blue hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-1">
       {loading ? "Please wait..." : label}
     </button>
   );

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
   title: "Luminous - The chat app for Atlas School",
@@ -21,11 +22,11 @@ export default function RootLayout({
   `
       }} />
     </head>
-    <body
-      className={'antialiased'}
-    >
-    {children}
-    </body>
+      <body className="antialiased">
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }
