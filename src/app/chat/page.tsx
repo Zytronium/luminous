@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { SendHorizonal } from "lucide-react";
+import { SendHorizonal, Menu } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
@@ -50,6 +50,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [input, setInput] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Profile cache: userId -> displayName
   const profileCache = useRef<Map<string, string>>(new Map());
@@ -66,6 +67,13 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, active]);
+
+  // Close sidebar on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setSidebarOpen(false); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Fetch a display name, using cache to avoid redundant requests
   const getDisplayName = useCallback(async (userId: string): Promise<string> => {
@@ -184,32 +192,45 @@ export default function ChatPage() {
     return null; // Redirecting
 
   return (
-    <div className="flex flex-row justify-between h-screen w-screen gap-2 py-0 my-0 fixed top-0">
+    <div className="flex flex-row h-screen w-screen fixed top-0">
       <Sidebar
         channels={channels}
         active={active}
         setActive={setActive}
         user={{ displayName: user?.displayName ?? "..." }}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
-      <div className="flex flex-col h-screen w-full justify-between items-center">
-        <div className="w-full h-10 border-b-2 border-beige/25 mt-2 pb-2">
+      <div className="flex flex-col h-screen w-full min-w-0 justify-between items-center">
+
+        {/* Header */}
+        <div className="w-full flex items-center border-b-2 border-beige/25 mt-2 pb-2 gap-2 pr-4">
+          {/* Hamburger — mobile only */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden flex-shrink-0 ml-2 p-1.5 rounded-full hover:bg-beige/10 transition-all cursor-pointer"
+          >
+            <Menu size={20} className="text-teal" />
+          </button>
+
           {activeChannel ? (
-            <>
-          <span className="text-teal font-black text-xl ml-4">#</span>
+            <div className="flex items-center min-w-0 ml-2">
+              <span className="text-teal font-black text-xl ml-2">#</span>
           {" "}
-              <span className="text-offwhite font-bold text-lg">{activeChannel.name}</span>
-          <span className="text-teal/75 font-medium text-xs ml-5 border-l border-teal/25 pl-4">
+              <span className="text-offwhite font-bold text-lg ml-1 truncate">{activeChannel.name}</span>
+              <span className="text-teal/75 font-medium text-xs ml-5 border-l border-teal/25 pl-4 hidden sm:block truncate">
                 {activeChannel.description}
               </span>
-            </>
+            </div>
           ) : (
-            <span className="text-offwhite/40 text-sm ml-4">
+            <span className="text-offwhite/40 text-sm ml-2">
               {loadingChannels ? "Loading..." : "No channels"}
           </span>
           )}
         </div>
 
+        {/* Messages */}
         <div className="flex-1 w-full overflow-y-auto min-h-0">
           {msgs.length === 0 && !loadingChannels && (
             <p className="text-center text-offwhite/75 text-sm mt-4">
@@ -228,12 +249,12 @@ export default function ChatPage() {
                 <span className="text-sm font-semibold text-darker-blue dark:text-beige truncate flex-1">
                   {msg.author}
                 </span>
-                <span className="text-xs text-darker-blue/75 dark:text-beige/75">
+                <span className="text-xs text-darker-blue/75 dark:text-beige/75 flex-shrink-0">
                   {msg.time}
                 </span>
               </div>
               <div className="flex flex-row items-center gap-2">
-                <div className="text-sm text-offwhite">
+                <div className="text-sm text-offwhite break-words min-w-0">
                   {msg.content}
                 </div>
               </div>
@@ -242,6 +263,7 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
+        {/* Input */}
         <div className="flex flex-row items-center gap-2 w-full px-4 pb-4 pt-2">
           <textarea
             ref={inputRef}
@@ -251,7 +273,7 @@ export default function ChatPage() {
             placeholder={activeChannel ? `Message #${activeChannel.name}` : ""}
             disabled={!activeChannel}
             rows={1}
-            className="flex-1 bg-transparent text-offwhite placeholder:text-beige/40 rounded-full h-11 border-2 border-teal/25 px-5 py-2.5 outline-none focus:border-teal/60 transition-colors text-sm resize-none disabled:opacity-40"
+            className="flex-1 bg-transparent text-offwhite placeholder:text-beige/40 rounded-full h-11 border-2 border-teal/25 px-5 py-2.5 outline-none focus:border-teal/60 transition-colors text-sm resize-none disabled:opacity-40 min-w-0"
           />
           <button
             onClick={send}
