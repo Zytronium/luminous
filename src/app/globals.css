@@ -53,3 +53,25 @@ a {
 .btn-tertiary {
   @apply bg-red text-offwhite
 }
+
+/* Firefox */
+* {
+  scrollbar-color: #1ED2AF #00002e;
+  scrollbar-width: thin;
+}
+
+/* Chrome, Safari, Edge */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: #00002e;
+}
+*::-webkit-scrollbar-thumb {
+  background: #1ED2AF;
+  border-radius: 99px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #54f4d0;
+}
