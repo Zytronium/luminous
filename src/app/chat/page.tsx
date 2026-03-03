@@ -69,7 +69,7 @@ export default function ChatPage() {
       <Sidebar channels={CHANNELS} active={active} setActive={setActive}
                user={{ displayName: "John Doe" }} />
       <div className="flex flex-col h-screen w-full justify-between items-center">
-        <div className="w-full h-10 border-b-2 border-beige/25 mt-2">
+        <div className="w-full h-10 border-b-2 border-beige/25 mt-2 pb-2">
           <span className="text-teal font-black text-xl ml-4">#</span>
           {" "}
           <span className="text-offwhite font-bold text-lg">{get_channel_name(active)}</span>
@@ -77,7 +77,7 @@ export default function ChatPage() {
             {get_channel_descr(active)}
           </span>
         </div>
-        <div className="flex-1 w-full">
+        <div className="flex-1 w-full overflow-y-auto min-h-0">
           {msgs.length === 0 && (<p className="text-center text-offwhite/75 text-sm mt-4" style={{}}>
             Channel empty. Be the first to say something!
           </p>)}
@@ -106,7 +106,7 @@ export default function ChatPage() {
           ))}
           <div ref={bottomRef} />
         </div>
-        <div className="flex flex-row items-center gap-2 w-full px-4 pb-4">
+        <div className="flex flex-row items-center gap-2 w-full px-4 pb-4 pt-2">
           <textarea
             ref={inputRef as React.RefObject<HTMLTextAreaElement>}
             value={input}
