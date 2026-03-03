@@ -39,7 +39,7 @@ export default function AuthPage() {
         setStatus({ type: "error", message: data.error });
       } else {
         setStatus({ type: "success", message: "Signed in! Redirecting..." });
-        window.location.href = "/ai-example";
+        window.location.href = "/chat";
       }
     } catch {
       setStatus({ type: "error", message: "Something went wrong. Try again." });
