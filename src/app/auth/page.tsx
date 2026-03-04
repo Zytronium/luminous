@@ -3,11 +3,19 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { createSupabaseClient } from "@/lib/supabase/client";
 
 type Mode = "login" | "signup";
 type Status = { type: "error" | "success"; message: string } | null;
 
+const supabase = createSupabaseClient();
+
 export default function AuthPage() {
+  const { setAuth } = useAuth();
+  const router = useRouter();
+
   const [mode, setMode] = useState<Mode>("login");
   const [status, setStatus] = useState<Status>(null);
   const [loading, setLoading] = useState(false);
@@ -38,8 +46,15 @@ export default function AuthPage() {
       if (!res.ok) {
         setStatus({ type: "error", message: data.error });
       } else {
+        // Give the session to the client-side Supabase instance so it
+        // persists in localStorage and onAuthStateChange fires correctly
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        setAuth(data.user, data.session);
         setStatus({ type: "success", message: "Signed in! Redirecting..." });
-        window.location.href = "/chat";
+        router.push("/chat");
       }
     } catch {
       setStatus({ type: "error", message: "Something went wrong. Try again." });
