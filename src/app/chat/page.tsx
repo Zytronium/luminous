@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { SendHorizonal, Menu } from "lucide-react";
+import { SendHorizonal, Menu, Hash } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
@@ -216,8 +216,8 @@ export default function ChatPage() {
 
           {activeChannel ? (
             <div className="flex items-center min-w-0 ml-2">
-              <span className="text-teal font-black text-xl ml-2">#</span>
-          {" "}
+              <Hash size={20} className="text-teal ml-2" />
+              {" "}
               <span className="text-offwhite font-bold text-lg ml-1 truncate">{activeChannel.name}</span>
               <span className="text-teal/75 font-medium text-xs ml-5 border-l border-teal/25 pl-4 hidden sm:block truncate">
                 {activeChannel.description}
@@ -231,7 +231,7 @@ export default function ChatPage() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 w-full overflow-y-auto min-h-0">
+        <div className="flex-1 w-full overflow-y-auto min-h-0 bg-darkest-blue">
           {msgs.length === 0 && !loadingChannels && (
             <p className="text-center text-offwhite/75 text-sm mt-4">
             Channel empty. Be the first to say something!

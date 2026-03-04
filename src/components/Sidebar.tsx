@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { X } from "lucide-react";
+import { Hash, X } from "lucide-react";
 
 type Channel = { id: string; name: string; description: string };
 
@@ -67,11 +67,12 @@ function SidebarInner({ channels, active, setActive, user, onClose }: SidebarPro
           <button
             key={ch.id}
             onClick={() => { setActive(ch.id); onClose?.(); }}
-            className={`text-left text-sm px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+            className={`flex flex-row items-center text-left text-sm px-3 py-1.5 rounded-full transition-all cursor-pointer ${
               active === ch.id ? "bg-darker-blue/75 text-offwhite" : "text-darker-blue hover:bg-darker-blue/15"
               }`}
           >
-            # {ch.name}
+            <Hash size={12} className="mr-0.5"/>
+            {ch.name}
           </button>
         ))}
       </div>
