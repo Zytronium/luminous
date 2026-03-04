@@ -34,5 +34,7 @@ mac:
   icon: resources/icon.icns
 
 linux:
-  target: AppImage
+  target:
+  - AppImage
+  - deb
   category: Network
