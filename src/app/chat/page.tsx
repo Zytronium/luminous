@@ -91,7 +91,7 @@ export default function ChatPage() {
   // Fetch channels from DB on mount
   useEffect(() => {
     if (!token) return;
-    fetch("/api/channels", {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/channels`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -108,7 +108,7 @@ export default function ChatPage() {
       return;
 
     // Fetch msg history
-    fetch(`/api/channel/${active}/messages`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -159,7 +159,7 @@ export default function ChatPage() {
     setInput("");
     inputRef.current?.focus();
 
-    await fetch("/api/message/send", {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/message/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

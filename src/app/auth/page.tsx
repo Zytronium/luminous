@@ -3,16 +3,11 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
 
 type Mode = "login" | "signup";
 type Status = { type: "error" | "success"; message: string } | null;
 
 export default function AuthPage() {
-  const { setAuth } = useAuth();
-  const router = useRouter();
-
   const [mode, setMode] = useState<Mode>("login");
   const [status, setStatus] = useState<Status>(null);
   const [loading, setLoading] = useState(false);
@@ -34,7 +29,7 @@ export default function AuthPage() {
     setStatus(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
@@ -43,9 +38,8 @@ export default function AuthPage() {
       if (!res.ok) {
         setStatus({ type: "error", message: data.error });
       } else {
-        setAuth(data.user, data.session);
         setStatus({ type: "success", message: "Signed in! Redirecting..." });
-        router.push("/chat");
+        window.location.href = "/chat";
       }
     } catch {
       setStatus({ type: "error", message: "Something went wrong. Try again." });
@@ -63,7 +57,7 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
