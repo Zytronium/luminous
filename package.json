@@ -2,11 +2,22 @@
   "name": "luminous",
   "version": "0.1.0",
   "private": true,
+  "description": "Exclusive unofficial chat app for Atlas School students and alumni",
+  "author": {
+    "name": "Atlas School Alumni",
+    "email": "zytronium@zytronium.dev"
+  },
+  "main": "build/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:compile": "tsup",
+    "electron:dev": "npm-run-all --parallel electron:watch dev",
+    "electron:watch": "tsup --watch",
+    "electron:start": "cross-env NODE_ENV=development electron .",
+    "package": "next build && tsup && electron-builder"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
@@ -17,14 +28,22 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@electron-toolkit/utils": "^4.0.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
+    "cross-env": "^10.1.0",
+    "electron": "^40.7.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "get-port-please": "^3.2.0",
+    "npm-run-all": "^4.1.5",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.5.1",
     "typescript": "^5"
   }
 }

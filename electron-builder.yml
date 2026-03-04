@@ -1,0 +1,37 @@
+appId: dev.zytronium.luminous
+productName: Luminous
+
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - build
+  - package.json
+
+extraFiles:
+  - from: .next/standalone
+    to: app
+    filter:
+      - "!**/.env"
+      - "!**/.env.*"
+  - from: .next/static
+    to: app/.next/static
+  - from: public
+    to: app/public
+
+asar: true
+
+win:
+  target: nsis
+  icon: resources/icon.ico
+
+mac:
+  target: dmg
+  icon: resources/icon.icns
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Network
