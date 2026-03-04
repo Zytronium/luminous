@@ -2,6 +2,11 @@
   "name": "luminous",
   "version": "0.1.0",
   "private": true,
+  "description": "Exclusive unofficial chat app for Atlas School students and alumni",
+  "author": {
+    "name": "Atlas School Alumni",
+    "email": "zytronium@zytronium.dev"
+  },
   "main": "build/main.js",
   "scripts": {
     "dev": "next dev",
