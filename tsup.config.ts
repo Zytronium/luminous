@@ -7,6 +7,6 @@ export default defineConfig({
   splitting: false,
   sourcemap: false,
   clean: true,
-  skipNodeModulesBundle: true,
   external: ["electron"],
+  noExternal: ["get-port-please", "@electron-toolkit/utils"],
 });
