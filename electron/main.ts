@@ -1,10 +1,10 @@
 import { app, BrowserWindow, shell } from "electron";
 import { join } from "path";
-import { Worker } from "worker_threads";
+import { spawn, ChildProcess } from "child_process";
 import { getPort } from "get-port-please";
 
 let mainWindow: BrowserWindow;
-let nextWorker: Worker | null = null;
+let nextServer: ChildProcess | null = null;
 
 async function startNextServer(): Promise<number> {
   const port = await getPort({ portRange: [30011, 50000] });
@@ -14,17 +14,27 @@ async function startNextServer(): Promise<number> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Next.js server timed out")), 30000);
 
-    nextWorker = new Worker(serverScript, {
+    nextServer = spawn(process.execPath, [serverScript], {
+      cwd: appDir,
       env: {
         ...process.env,
         PORT: String(port),
         NODE_ENV: "production",
         HOSTNAME: "localhost",
+        ELECTRON_RUN_AS_NODE: "1",
       },
-      execArgv: [],
+      stdio: "pipe",
     });
 
-    nextWorker.on("error", (err) => {
+    nextServer.stdout?.on("data", (data: Buffer) => {
+      console.log("[next]", data.toString());
+    });
+
+    nextServer.stderr?.on("data", (data: Buffer) => {
+      console.error("[next error]", data.toString());
+    });
+
+    nextServer.on("error", (err) => {
       clearTimeout(timeout);
       reject(err);
     });
@@ -82,14 +92,15 @@ async function createWindow() {
 app.whenReady().then(createWindow);
 
 app.on("window-all-closed", () => {
-  nextWorker?.terminate();
+  nextServer?.kill();
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
-  nextWorker?.terminate();
+  nextServer?.kill();
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (BrowserWindow.getAllWindows().length === 0)
+    createWindow();
 });
