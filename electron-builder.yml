@@ -21,8 +21,12 @@ extraResources:
       - "!**/@img/**"
       - "!**/sharp/**"
       - "!**/@next/swc-linux-x64-musl/**"
+      - "!**/@next/swc-linux-x64-gnu/**"
       - "!**/@next/swc-win32*/**"
       - "!**/@next/swc-darwin*/**"
+      - "!**/babel-plugin-react-compiler/**"
+      - "!**/caniuse-lite/**"
+      - "!**/@types/**"
       - "!**/*.map"
       - "!**/*.d.ts"
       - "!**/test/**"
@@ -33,6 +37,7 @@ extraResources:
     filter:
       - "!standalone/**"
       - "!cache/**"
+      - "!dev/**"
       - "!**/*.map"
   - from: public
     to: app/public
