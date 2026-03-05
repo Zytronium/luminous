@@ -1,51 +1,46 @@
 import { app, BrowserWindow, shell } from "electron";
 import { join } from "path";
-import { spawn, ChildProcess } from "child_process";
+import { Worker } from "worker_threads";
 import { getPort } from "get-port-please";
 
 let mainWindow: BrowserWindow;
-let nextServer: ChildProcess | null = null;
+let nextWorker: Worker | null = null;
 
 async function startNextServer(): Promise<number> {
   const port = await getPort({ portRange: [30011, 50000] });
   const appDir = join(process.resourcesPath, "app");
   const serverScript = join(appDir, "server.js");
 
-  nextServer = spawn("node", [serverScript], {
-    cwd: appDir,
-    env: {
-      ...process.env,
-      PORT: String(port),
-      NODE_ENV: "production",
-      HOSTNAME: "localhost",
-    },
-    stdio: "pipe",
-  });
-
-  nextServer.stdout?.on("data", (data) => {
-    console.log("[next]", data.toString());
-  });
-
-  nextServer.stderr?.on("data", (data) => {
-    console.error("[next error]", data.toString());
-  });
-
-  // Wait for Next.js to be ready before loading the window
-  await new Promise<void>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Next.js server timed out")), 30000);
-    nextServer!.stdout?.on("data", (data: Buffer) => {
-      if (data.toString().includes("Ready") || data.toString().includes("started server")) {
-        clearTimeout(timeout);
-        resolve();
-      }
+
+    nextWorker = new Worker(serverScript, {
+      env: {
+        ...process.env,
+        PORT: String(port),
+        NODE_ENV: "production",
+        HOSTNAME: "localhost",
+      },
+      execArgv: [],
     });
-    nextServer!.on("error", (err) => {
+
+    nextWorker.on("error", (err) => {
       clearTimeout(timeout);
       reject(err);
     });
-  });
 
-  return port;
+    // Poll until the server is accepting connections
+    const interval = setInterval(async () => {
+      try {
+        await fetch(`http://localhost:${port}`);
+        clearTimeout(timeout);
+        clearInterval(interval);
+        resolve(port);
+      } catch {
+        // Not ready yet, keep polling
+      }
+    }, 250);
+  });
 }
 
 async function createWindow() {
@@ -87,12 +82,12 @@ async function createWindow() {
 app.whenReady().then(createWindow);
 
 app.on("window-all-closed", () => {
-  nextServer?.kill();
+  nextWorker?.terminate();
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
-  nextServer?.kill();
+  nextWorker?.terminate();
 });
 
 app.on("activate", () => {
