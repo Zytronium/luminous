@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, Menu } from "electron";
+import { app, BrowserWindow, shell, Menu, ipcMain } from "electron";
 import { join } from "path";
 import { spawn, ChildProcess } from "child_process";
 import { getPort } from "get-port-please";
@@ -7,6 +7,16 @@ Menu.setApplicationMenu(null);
 
 let mainWindow: BrowserWindow;
 let nextServer: ChildProcess | null = null;
+
+// Window control IPC handlers
+ipcMain.on("window:minimize", () => mainWindow?.minimize());
+ipcMain.on("window:maximize", () => {
+  if (mainWindow?.isMaximized())
+    mainWindow.unmaximize();
+  else
+    mainWindow?.maximize();
+});
+ipcMain.on("window:close", () => mainWindow?.close());
 
 async function startNextServer(): Promise<number> {
   const port = await getPort({ portRange: [30011, 50000] });
@@ -62,6 +72,8 @@ async function createWindow() {
     minWidth: 480,
     minHeight: 600,
     show: false,
+    frame: false,
+    titleBarStyle: "hidden", // remove native app title bar
     icon: join(process.resourcesPath, "../icon.png"),
     webPreferences: {
       preload: join(__dirname, "preload.js"),
