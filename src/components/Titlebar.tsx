@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Minus, Square, X } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 // Extend Window type to include electronAPI
 declare global {
@@ -20,6 +21,7 @@ declare global {
 export default function TitleBar() {
   const [isElectron, setIsElectron] = useState(false);
   const [platform, setPlatform] = useState("");
+  const pathname = usePathname();
 
   useEffect(() => {
     if (window.electronAPI?.isElectron) {
@@ -28,7 +30,8 @@ export default function TitleBar() {
     }
   }, []);
 
-  if (!isElectron) return null;
+  if (!isElectron || pathname === "/chat")
+    return null;
 
   const isMac = platform === "darwin";
 

@@ -23,10 +23,12 @@ export default function RootLayout({
   `
       }} />
     </head>
-      <body className="antialiased flex flex-col h-screen">
+      <body className="antialiased flex flex-col h-screen w-screen overflow-hidden">
         <AuthProvider>
           <TitleBar />
+          <div className="flex-1 flex flex-col h-screen w-screen overflow-auto">
           {children}
+          </div>
         </AuthProvider>
       </body>
     </html>
