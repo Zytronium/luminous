@@ -8,21 +8,12 @@ directories:
 files:
   - build
   - package.json
-  - filter:
-      - "!**/node_modules/@types/**"
-      - "!**/node_modules/typescript/**"
-      - "!**/node_modules/eslint/**"
-      - "!**/node_modules/@eslint/**"
-      - "!**/node_modules/electron/**"
-      - "!**/node_modules/electron-builder/**"
-      - "!**/node_modules/tsup/**"
-      - "!**/node_modules/tailwindcss/**"
-      - "!**/node_modules/@tailwindcss/**"
-      - "!**/node_modules/ts-node/**"
-      - "!**/node_modules/babel-plugin-react-compiler/**"
-      - "!**/node_modules/cross-env/**"
-      - "!**/node_modules/npm-run-all/**"
-
+  - from: node_modules
+    to: node_modules
+    filter:
+      - "!**"
+      - "get-port-please/**"
+      - "get-port/**"
 
 extraResources:
   - from: .next/standalone/server.js
@@ -35,6 +26,9 @@ extraResources:
     to: app/.next
     filter:
       - "!standalone/**"
+      - "!cache/**"
+      - "!trace"
+      - "!*.trace"
   - from: public
     to: app/public
 
@@ -50,8 +44,8 @@ mac:
 
 linux:
   target:
-  - AppImage
-  - deb
+    - AppImage
+    - deb
   category: Network
 
 nodeVersion: 24.13.0

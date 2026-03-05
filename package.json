@@ -17,7 +17,7 @@
     "electron:dev": "npm-run-all --parallel electron:watch dev",
     "electron:watch": "tsup --watch",
     "electron:start": "cross-env NODE_ENV=development electron .",
-    "package": "next build && tsup && electron-builder"
+    "package": "next build && tsup && cd .next/standalone && npm prune --omit=dev && cd ../../ && electron-builder"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^4.0.0",
-    "@swc/core": "^1.15.18",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
