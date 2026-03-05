@@ -1,7 +1,9 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, Menu } from "electron";
 import { join } from "path";
 import { spawn, ChildProcess } from "child_process";
 import { getPort } from "get-port-please";
+
+Menu.setApplicationMenu(null);
 
 let mainWindow: BrowserWindow;
 let nextServer: ChildProcess | null = null;
