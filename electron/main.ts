@@ -1,7 +1,9 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, Menu } from "electron";
 import { join } from "path";
 import { spawn, ChildProcess } from "child_process";
 import { getPort } from "get-port-please";
+
+Menu.setApplicationMenu(null);
 
 let mainWindow: BrowserWindow;
 let nextServer: ChildProcess | null = null;
@@ -60,6 +62,7 @@ async function createWindow() {
     minWidth: 480,
     minHeight: 600,
     show: false,
+    icon: join(process.resourcesPath, "../icon.png"),
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
