@@ -8,6 +8,21 @@ directories:
 files:
   - build
   - package.json
+  - filter:
+      - "!**/node_modules/@types/**"
+      - "!**/node_modules/typescript/**"
+      - "!**/node_modules/eslint/**"
+      - "!**/node_modules/@eslint/**"
+      - "!**/node_modules/electron/**"
+      - "!**/node_modules/electron-builder/**"
+      - "!**/node_modules/tsup/**"
+      - "!**/node_modules/tailwindcss/**"
+      - "!**/node_modules/@tailwindcss/**"
+      - "!**/node_modules/ts-node/**"
+      - "!**/node_modules/babel-plugin-react-compiler/**"
+      - "!**/node_modules/cross-env/**"
+      - "!**/node_modules/npm-run-all/**"
+
 
 extraResources:
   - from: .next/standalone/server.js
@@ -38,3 +53,5 @@ linux:
   - AppImage
   - deb
   category: Network
+
+nodeVersion: 24.13.0

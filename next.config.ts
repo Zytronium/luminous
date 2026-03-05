@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  output: "standalone",
+  output: 'standalone',
+  productionBrowserSourceMaps: false,
+  compress: true,
+  poweredByHeader: false,
   images: {
     unoptimized: true,
   },
