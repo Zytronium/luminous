@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import TitleBar from "@/components/Titlebar";
 
 export const metadata: Metadata = {
   title: "Luminous - The chat app for Atlas School",
@@ -22,8 +23,9 @@ export default function RootLayout({
   `
       }} />
     </head>
-      <body className="antialiased">
+      <body className="antialiased flex flex-col h-screen">
         <AuthProvider>
+          <TitleBar />
           {children}
         </AuthProvider>
       </body>
