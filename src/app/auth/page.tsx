@@ -95,6 +95,24 @@ export default function AuthPage() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!loginEmail) {
+      alert("Please enter your email address first.");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(loginEmail, {
+      redirectTo: "https://luminous-chat.vercel.app/reset-password",
+    });
+
+    if (error) {
+      console.error(error);
+      alert("Failed to send email.");
+    } else {
+      alert("Check your email for a password reset link.");
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center mt-[10vh] pb-[10vh] h-screen w-full">
       {/* Card */}
@@ -164,7 +182,12 @@ export default function AuthPage() {
             <SubmitButton loading={loading} label="Sign In" />
             <p className="text-center text-xs text-darker-blue/50 dark:text-offwhite/50">
               Forgot your password?{" "}
-              <span className="text-teal cursor-pointer hover:underline">Reset it</span>
+              <span
+                  className="text-teal cursor-pointer hover:underline"
+                  onClick={handleResetPassword}
+              >
+                Reset it
+              </span>
             </p>
           </form>
         )}
