@@ -6,6 +6,7 @@ import Sidebar from "@/components/Sidebar";
 import { SendHorizonal, Menu, Hash, Minus, Square, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import MessageHover from "@/components/MessageHover";
 
 type Channel = {
   id: string;
@@ -25,6 +26,7 @@ type DbMessage = {
 type Message = {
   id: string;
   author: string;
+  authorId: string;
   content: string;
   time: string;
 };
@@ -127,11 +129,12 @@ export default function ChatPage() {
           return;
         }
         const mapped: Message[] = data.map((m) => ({
-          id: m.id,
-          author: m.profiles?.display_name ?? "Unknown",
-          content: m.content,
-          time: formatTime(m.created_at),
-        }));
+        id: m.id,
+        author: m.profiles?.display_name ?? "Unknown",
+        authorId: m.user_id,
+        content: m.content,
+        time: formatTime(m.created_at),
+    }));
         setMessages((prev) => ({ ...prev, [active]: mapped }));
       });
 
@@ -147,6 +150,7 @@ export default function ChatPage() {
         const msg: Message = {
           id: record.id,
           author: displayName,
+		  authorId: record.user_id,
           content: record.content,
           time: formatTime(record.created_at),
         };
@@ -221,7 +225,7 @@ export default function ChatPage() {
           {/* Hamburger — mobile only. no-drag so it stays clickable */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="md:hidden flex-shrink-0 ml-2 p-1.5 rounded-full hover:bg-beige/10 transition-all cursor-pointer"
+            className="md:hidden shrink-0 ml-2 p-1.5 rounded-full hover:bg-beige/10 transition-all cursor-pointer"
             style={isElectron ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
           >
             <Menu size={20} className="text-teal" />
@@ -284,9 +288,16 @@ export default function ChatPage() {
             </p>
           )}
           {msgs.map((msg) => (
-            <div key={msg.id} className="flex flex-col gap-2 w-full px-4 py-2">
-              <div className="flex flex-row items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue flex items-center justify-center flex-shrink-0">
+            <div key={msg.id} className="group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-white/5 transition-colors">
+              <div className="absolute right-4 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+  				<MessageHover 
+				  messageId={msg.id} 
+				  authorId={msg.authorId}
+				  userId={user?.id || ""}
+				/>
+			  </div>
+			  <div className="flex flex-row items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue flex items-center justify-center shrink-0">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-neon-teal">
                     <circle cx="12" cy="8" r="4" fill="currentColor" />
                     <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" fill="currentColor" />
@@ -295,12 +306,12 @@ export default function ChatPage() {
                 <span className="text-sm font-semibold text-darker-blue dark:text-beige truncate flex-1">
                   {msg.author}
                 </span>
-                <span className="text-xs text-darker-blue/75 dark:text-beige/75 flex-shrink-0">
+                <span className="text-xs text-darker-blue/75 dark:text-beige/75 shrink-0">
                   {msg.time}
                 </span>
               </div>
               <div className="flex flex-row items-center gap-2">
-                <div className="text-sm text-offwhite break-words min-w-0">
+                <div className="text-sm text-offwhite wrap-break-words min-w-0">
                   {msg.content}
                 </div>
               </div>
@@ -324,7 +335,7 @@ export default function ChatPage() {
           <button
             onClick={send}
             disabled={!input.trim() || !activeChannel}
-            className="flex-shrink-0 w-11 h-11 rounded-full bg-teal flex items-center justify-center hover:brightness-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="shrink-0 w-11 h-11 rounded-full bg-teal flex items-center justify-center hover:brightness-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <SendHorizonal className="text-darker-blue" size={24} />
           </button>

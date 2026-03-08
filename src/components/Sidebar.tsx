@@ -28,14 +28,14 @@ function Logo() {
 function UserStrip({ user }: { user: { displayName: string } }) {
   return (
     <div className="flex items-center gap-2 px-1 py-1.5">
-      <div className="w-8 h-8 rounded-full bg-blue flex items-center justify-center flex-shrink-0">
+      <div className="w-8 h-8 rounded-full bg-blue flex items-center justify-center shrink-0">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-neon-teal">
           <circle cx="12" cy="8" r="4" fill="currentColor" />
           <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" fill="currentColor" />
         </svg>
       </div>
       <span className="text-sm font-semibold text-darker-blue truncate flex-1">{user.displayName}</span>
-      <button className="flex-shrink-0 p-1 rounded-full hover:bg-darker-blue/15 transition-all cursor-pointer">
+      <button className="shrink-0 p-1 rounded-full hover:bg-darker-blue/15 transition-all cursor-pointer">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-darker-blue/70">
           <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -52,7 +52,7 @@ function SidebarInner({ channels, active, setActive, user, onClose }: SidebarPro
         <Logo />
         {/* Close button — mobile only */}
         {onClose && (
-          <button onClick={onClose} className="md:hidden p-1.5 rounded-full hover:bg-darker-blue/15 transition-all cursor-pointer flex-shrink-0">
+          <button onClick={onClose} className="md:hidden p-1.5 rounded-full hover:bg-darker-blue/15 transition-all cursor-pointer shrink-0">
             <X size={18} className="text-darker-blue/70" />
           </button>
         )}
@@ -86,7 +86,7 @@ export default function Sidebar({ channels, active, setActive, user, open, onClo
   return (
     <>
       {/* Desktop — always visible */}
-      <div className="hidden md:block flex-shrink-0 h-screen">
+      <div className="hidden md:block shrink-0 h-screen">
         <SidebarInner channels={channels} active={active} setActive={setActive} user={user} />
       </div>
 
