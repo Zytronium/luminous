@@ -14,15 +14,18 @@
 }
 
 @theme inline {
-  --color-neon-teal:   #54f4d0;
-  --color-teal:        #1ED2AF;
-  --color-blue:        #000061;
-  --color-dark-blue:   #00003c;
-  --color-darker-blue: #00002e;
+  --color-neon-teal:    #54f4d0;
+  --color-teal:         #1ED2AF;
+  --color-blue:         #000061;
+  --color-dark-blue:    #00003c;
+  --color-darker-blue:  #00002e;
   --color-darkest-blue: #000028;
-  --color-red:         #d00414;
-  --color-beige:       #f7f0dc;
-  --color-offwhite:    #fef9e6;
+  --muted-blue:         #404858;
+  --light-muted-blue:   #60697d;
+  --color-red:          #d00414;
+  --color-dark-red:     #9e0512;
+  --color-beige:        #f7f0dc;
+  --color-offwhite:     #fef9e6;
 }
 
 @font-face {
