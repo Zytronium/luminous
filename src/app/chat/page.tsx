@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { SendHorizonal, Menu, Hash, Minus, Square, X } from "lucide-react";
+import { SendHorizonal, Menu, Hash, Minus, Square, X, Check, Ban } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import MessageHover from "@/components/MessageHover";
@@ -31,16 +31,32 @@ type Message = {
   time: string;
 };
 
-type BroadcastPayload = {
+type InsertBroadcastPayload = {
   payload: {
     record: Omit<DbMessage, "profiles">;
+  };
+};
+
+type UpdateBroadcastPayload = {
+  payload: {
+    record: { id: string; content: string };
+  };
+};
+
+type DeleteBroadcastPayload = {
+  payload: {
+    record?: { id: string } | null;
+    old_record?: { id: string } | null;
   };
 };
 
 const supabase = createSupabaseClient();
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function ChatPage() {
@@ -55,6 +71,11 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isElectron, setIsElectron] = useState(false);
   const [isMac, setIsMac] = useState(false);
+
+  // Inline message editing state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const editRef = useRef<HTMLTextAreaElement>(null);
 
   // Profile cache: userId -> displayName
   const profileCache = useRef<Map<string, string>>(new Map());
@@ -79,16 +100,28 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, active]);
 
-  // Close sidebar on Escape
+  // Close sidebar on Escape; cancel editing on Escape
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setSidebarOpen(false); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSidebarOpen(false);
+        setEditingId(null);
+        setEditContent("");
+      }
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Focus edit textarea when edit mode is activated
+  useEffect(() => {
+    if (editingId) editRef.current?.focus();
+  }, [editingId]);
+
   // Fetch a display name, using cache to avoid redundant requests
   const getDisplayName = useCallback(async (userId: string): Promise<string> => {
-    if (profileCache.current.has(userId)) return profileCache.current.get(userId)!;
+    if (profileCache.current.has(userId))
+      return profileCache.current.get(userId)!;
     const { data } = await supabase
       .from("profiles")
       .select("display_name")
@@ -119,9 +152,10 @@ export default function ChatPage() {
       return;
 
     // Fetch msg history
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
       .then((r) => r.json())
       .then((data: DbMessage[]) => {
         if (!Array.isArray(data)) {
@@ -129,36 +163,73 @@ export default function ChatPage() {
           return;
         }
         const mapped: Message[] = data.map((m) => ({
-        id: m.id,
-        author: m.profiles?.display_name ?? "Unknown",
-        authorId: m.user_id,
-        content: m.content,
-        time: formatTime(m.created_at),
-    }));
+          id: m.id,
+          author: m.profiles?.display_name ?? "Unknown",
+          authorId: m.user_id,
+          content: m.content,
+          time: formatTime(m.created_at),
+        }));
         setMessages((prev) => ({ ...prev, [active]: mapped }));
       });
 
-    // Realtime subscription \\ Note: don't get supabase.channel confused with chat channels.
+    // Realtime subscription
+    // Note: don't confuse supabase.channel() with chat channels.
     const channel = supabase.channel(`channel:${active}:messages`, {
       config: { private: true },
     });
 
     channel
-      .on("broadcast", { event: "INSERT" }, async ({ payload }: BroadcastPayload) => {
-        const record = payload.record;
-        const displayName = await getDisplayName(record.user_id);
-        const msg: Message = {
-          id: record.id,
-          author: displayName,
-		  authorId: record.user_id,
-          content: record.content,
-          time: formatTime(record.created_at),
-        };
-        setMessages((prev) => ({
-          ...prev,
-          [active]: [...(prev[active] ?? []), msg],
-        }));
-      })
+      .on(
+        "broadcast",
+        { event: "INSERT" },
+        async ({ payload }: InsertBroadcastPayload) => {
+          const record = payload.record;
+          const displayName = await getDisplayName(record.user_id);
+          const msg: Message = {
+            id: record.id,
+            author: displayName,
+            authorId: record.user_id,
+            content: record.content,
+            time: formatTime(record.created_at),
+          };
+          setMessages((prev) => ({
+            ...prev,
+            [active]: [...(prev[active] ?? []), msg],
+          }));
+        }
+      )
+      .on(
+        "broadcast",
+        { event: "UPDATE" },
+        ({ payload }: UpdateBroadcastPayload) => {
+          const { id, content } = payload.record;
+          setMessages((prev) => {
+            const list = prev[active] ?? [];
+            return {
+              ...prev,
+              [active]: list.map((m) =>
+                m.id === id ? { ...m, content } : m
+              ),
+            };
+          });
+        }
+      )
+      .on(
+        "broadcast",
+        { event: "DELETE" },
+        ({ payload }: DeleteBroadcastPayload) => {
+          const id = payload.old_record?.id ?? payload.record?.id;
+          if (!id) return;
+          setMessages((prev) => {
+            const list = prev[active] ?? [];
+            return {
+              ...prev,
+              [active]: list.filter((m) => m.id !== id),
+            };
+          });
+          setEditingId((prev) => (prev === id ? null : prev));
+        }
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -190,16 +261,116 @@ export default function ChatPage() {
     }
   }
 
+  function startEdit(messageId: string) {
+    const msg = (messages[active] ?? []).find((m) => m.id === messageId);
+    if (!msg) return;
+    setEditingId(messageId);
+    setEditContent(msg.content);
+  }
+
+  async function saveEdit() {
+    if (!editingId || !editContent.trim() || !token) return;
+
+    const messageId = editingId;
+    const newContent = editContent.trim();
+
+    // Optimistically update locally (broadcast will confirm/overwrite)
+    setMessages((prev) => ({
+      ...prev,
+      [active]: (prev[active] ?? []).map((m) =>
+        m.id === messageId ? { ...m, content: newContent } : m
+      ),
+    }));
+    setEditingId(null);
+    setEditContent("");
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/messages/edit`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ messageId, newContent }),
+      }
+    );
+
+    if (!res.ok) {
+      // Roll back on failure
+      const msg = (messages[active] ?? []).find((m) => m.id === messageId);
+      if (msg) {
+        setMessages((prev) => ({
+          ...prev,
+          [active]: (prev[active] ?? []).map((m) =>
+            m.id === messageId ? { ...m, content: msg.content } : m
+          ),
+        }));
+      }
+    }
+  }
+
+  function handleEditKey(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      saveEdit();
+    }
+  }
+
+  async function handleDelete(messageId: string) {
+    if (!token) return;
+
+    // Optimistically remove
+    setMessages((prev) => ({
+      ...prev,
+      [active]: (prev[active] ?? []).filter((m) => m.id !== messageId),
+    }));
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/messages/delete`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ messageId }),
+      }
+    );
+
+    if (!res.ok) {
+      // Re-fetch this channel's messages to restore state
+      fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+        .then((r) => r.json())
+        .then((data: DbMessage[]) => {
+          if (!Array.isArray(data)) return;
+          setMessages((prev) => ({
+            ...prev,
+            [active]: data.map((m) => ({
+              id: m.id,
+              author: m.profiles?.display_name ?? "Unknown",
+              authorId: m.user_id,
+              content: m.content,
+              time: formatTime(m.created_at),
+            })),
+          }));
+        });
+    }
+  }
+
   const activeChannel = channels.find((c) => c.id === active);
   const msgs = messages[active] ?? [];
 
   // Show a blank screen while session is being restored
   if (loading)
     return (
-    <div className="flex items-center justify-center h-screen w-screen bg-darker-blue">
-      <span className="text-teal/50 text-sm">Loading...</span>
-    </div>
-  );
+      <div className="flex items-center justify-center h-screen w-screen bg-darker-blue">
+        <span className="text-teal/50 text-sm">Loading...</span>
+      </div>
+    );
 
   if (!token)
     return null; // Redirecting
@@ -220,13 +391,21 @@ export default function ChatPage() {
         {/* Header — doubles as title bar in Electron */}
         <div
           className="w-full flex items-center border-b-2 border-beige/25 mt-2 pb-2 gap-2 pr-4"
-          style={isElectron ? { WebkitAppRegion: "drag" } as React.CSSProperties : undefined}
+          style={
+            isElectron
+              ? ({ WebkitAppRegion: "drag" } as React.CSSProperties)
+              : undefined
+          }
         >
           {/* Hamburger — mobile only. no-drag so it stays clickable */}
           <button
             onClick={() => setSidebarOpen(true)}
             className="md:hidden shrink-0 ml-2 p-1.5 rounded-full hover:bg-beige/10 transition-all cursor-pointer"
-            style={isElectron ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
+            style={
+              isElectron
+                ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties)
+                : undefined
+            }
           >
             <Menu size={20} className="text-teal" />
           </button>
@@ -234,7 +413,11 @@ export default function ChatPage() {
           {activeChannel ? (
             <div
               className="flex items-center min-w-0 ml-2 flex-1"
-              style={isElectron ? { WebkitAppRegion: "drag" } as React.CSSProperties : undefined}
+              style={
+                isElectron
+                  ? ({ WebkitAppRegion: "drag" } as React.CSSProperties)
+                  : undefined
+              }
             >
               <Hash size={20} className="text-teal ml-2" />
               {" "}
@@ -246,10 +429,14 @@ export default function ChatPage() {
           ) : (
             <span
               className="text-offwhite/40 text-sm ml-2 flex-1"
-              style={isElectron ? { WebkitAppRegion: "drag" } as React.CSSProperties : undefined}
+              style={
+                isElectron
+                  ? ({ WebkitAppRegion: "drag" } as React.CSSProperties)
+                  : undefined
+              }
             >
               {loadingChannels ? "Loading..." : "No channels"}
-          </span>
+            </span>
           )}
 
           {/* Electron window controls — no-drag so buttons are clickable */}
@@ -284,23 +471,42 @@ export default function ChatPage() {
         <div className="flex-1 w-full overflow-y-auto min-h-0 bg-darkest-blue">
           {msgs.length === 0 && !loadingChannels && (
             <p className="text-center text-offwhite/75 text-sm mt-4">
-            Channel empty. Be the first to say something!
+              Channel empty. Be the first to say something!
             </p>
           )}
           {msgs.map((msg) => (
-            <div key={msg.id} className="group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-white/5 transition-colors">
-              <div className="absolute right-4 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-  				<MessageHover 
-				  messageId={msg.id} 
-				  authorId={msg.authorId}
-				  userId={user?.id || ""}
-				/>
-			  </div>
-			  <div className="flex flex-row items-center gap-2">
+            <div
+              key={msg.id}
+              className="group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-white/5 transition-colors"
+            >
+              {/* Hover action bar */}
+              {editingId !== msg.id && (
+                <div className="absolute right-4 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                  <MessageHover
+                    messageId={msg.id}
+                    authorId={msg.authorId}
+                    userId={user?.id ?? ""}
+                    onEdit={startEdit}
+                    onDelete={handleDelete}
+                  />
+                </div>
+              )}
+
+              {/* Author row */}
+              <div className="flex flex-row items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-blue flex items-center justify-center shrink-0">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-neon-teal">
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="text-neon-teal"
+                  >
                     <circle cx="12" cy="8" r="4" fill="currentColor" />
-                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" fill="currentColor" />
+                    <path
+                      d="M4 20c0-4 3.6-7 8-7s8 3 8 7"
+                      fill="currentColor"
+                    />
                   </svg>
                 </div>
                 <span className="text-sm font-semibold text-darker-blue dark:text-beige truncate flex-1">
@@ -310,11 +516,44 @@ export default function ChatPage() {
                   {msg.time}
                 </span>
               </div>
-              <div className="flex flex-row items-center gap-2">
-                <div className="text-sm text-offwhite wrap-break-words min-w-0">
-                  {msg.content}
+
+              {/* Content / inline edit */}
+              {editingId === msg.id ? (
+                <div className="flex flex-col gap-1.5 ml-10">
+                  <textarea
+                    ref={editRef}
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    onKeyDown={handleEditKey}
+                    rows={Math.min(editContent.split("\n").length + 1, 6)}
+                    className="w-full bg-dark-blue border border-teal/40 focus:border-teal/80 text-offwhite text-sm rounded-lg px-3 py-2 outline-none resize-none transition-colors"
+                  />
+                  <div className="flex items-center gap-2 text-xs text-beige/50">
+                    <button
+                      onClick={saveEdit}
+                      disabled={!editContent.trim()}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-teal/15 hover:bg-teal/25 text-teal transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Check size={12} />
+                      Save
+                    </button>
+                    <button
+                      onClick={() => { setEditingId(null); setEditContent(""); }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded hover:bg-beige/10 transition-colors"
+                    >
+                      <Ban size={12} />
+                      Cancel
+                    </button>
+                    <span className="ml-1">Enter to save · Esc to cancel</span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-row items-center gap-2">
+                  <div className="text-sm text-offwhite wrap-break-words min-w-0 ml-10">
+                    {msg.content}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
           <div ref={bottomRef} />
