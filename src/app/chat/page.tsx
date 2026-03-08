@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { SendHorizonal, Menu, Hash } from "lucide-react";
+import { SendHorizonal, Menu, Hash, Minus, Square, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import MessageHover from "@/components/MessageHover";
@@ -53,12 +53,21 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isElectron, setIsElectron] = useState(false);
+  const [isMac, setIsMac] = useState(false);
 
   // Profile cache: userId -> displayName
   const profileCache = useRef<Map<string, string>>(new Map());
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (window.electronAPI?.isElectron) {
+      setIsElectron(true);
+      setIsMac(window.electronAPI.platform === "darwin");
+    }
+  }, []);
 
   // Redirect to auth if not logged in (only if auth state is loaded)
   useEffect(() => {
@@ -208,18 +217,25 @@ export default function ChatPage() {
 
       <div className="flex flex-col h-screen w-full min-w-0 justify-between items-center">
 
-        {/* Header */}
-        <div className="w-full flex items-center border-b-2 border-beige/25 mt-2 pb-2 gap-2 pr-4">
-          {/* Hamburger — mobile only */}
+        {/* Header — doubles as title bar in Electron */}
+        <div
+          className="w-full flex items-center border-b-2 border-beige/25 mt-2 pb-2 gap-2 pr-4"
+          style={isElectron ? { WebkitAppRegion: "drag" } as React.CSSProperties : undefined}
+        >
+          {/* Hamburger — mobile only. no-drag so it stays clickable */}
           <button
             onClick={() => setSidebarOpen(true)}
             className="md:hidden shrink-0 ml-2 p-1.5 rounded-full hover:bg-beige/10 transition-all cursor-pointer"
+            style={isElectron ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
           >
             <Menu size={20} className="text-teal" />
           </button>
 
           {activeChannel ? (
-            <div className="flex items-center min-w-0 ml-2">
+            <div
+              className="flex items-center min-w-0 ml-2 flex-1"
+              style={isElectron ? { WebkitAppRegion: "drag" } as React.CSSProperties : undefined}
+            >
               <Hash size={20} className="text-teal ml-2" />
               {" "}
               <span className="text-offwhite font-bold text-lg ml-1 truncate">{activeChannel.name}</span>
@@ -228,9 +244,39 @@ export default function ChatPage() {
               </span>
             </div>
           ) : (
-            <span className="text-offwhite/40 text-sm ml-2">
+            <span
+              className="text-offwhite/40 text-sm ml-2 flex-1"
+              style={isElectron ? { WebkitAppRegion: "drag" } as React.CSSProperties : undefined}
+            >
               {loadingChannels ? "Loading..." : "No channels"}
           </span>
+          )}
+
+          {/* Electron window controls — no-drag so buttons are clickable */}
+          {isElectron && !isMac && (
+            <div
+              className="flex items-center gap-1 ml-2 flex-shrink-0"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            >
+              <button
+                onClick={() => window.electronAPI?.minimize()}
+                className="flex items-center justify-center w-8 h-8 rounded text-offwhite/50 hover:bg-beige/10 hover:text-offwhite transition-colors"
+              >
+                <Minus size={14} />
+              </button>
+              <button
+                onClick={() => window.electronAPI?.maximize()}
+                className="flex items-center justify-center w-8 h-8 rounded text-offwhite/50 hover:bg-beige/10 hover:text-offwhite transition-colors"
+              >
+                <Square size={12} />
+              </button>
+              <button
+                onClick={() => window.electronAPI?.close()}
+                className="flex items-center justify-center w-8 h-8 rounded text-offwhite/50 hover:bg-red hover:text-white transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
           )}
         </div>
 

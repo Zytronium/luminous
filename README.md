@@ -1,5 +1,6 @@
 # Luminous
 The exclusive chat app for students and graduates of [Atlas School](https://www.atlasschool.com/).
+Build by alumni for alumni.
 
 ---
 
@@ -31,4 +32,6 @@ and private DMs between users.
 
 ## Contributors
 - "Zytronium" | [GitHub](https://github.com/zytronium) | Front-end Designer, Back-end Developer, Project Lead
-- Anonymous | No GitHub | Database Developer, Cyber Security Expert
+- Mike Bilbee | [GitHub](https://github.com/MikeBilbee) | Full-stack Developer
+- Evan Richardson | [GitHub](https://github.com/evanrich2404) | Full-stack Developer
+- Anonymous | No GitHub | Database Developer, Cybersecurity Expert
