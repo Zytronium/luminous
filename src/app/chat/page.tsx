@@ -7,6 +7,7 @@ import { SendHorizonal, Menu, Hash, Minus, Square, X, Check, Ban } from "lucide-
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import MessageHover from "@/components/MessageHover";
+import MessageReactions from "@/components/MessageReactions";
 
 type Channel = {
   id: string;
@@ -23,12 +24,19 @@ type DbMessage = {
   profiles: { display_name: string } | null;
 };
 
+export type Reaction = {
+  emoji: string;
+  count: number;
+  users: string[];
+};
+
 type Message = {
   id: string;
   author: string;
   authorId: string;
   content: string;
   time: string;
+  reactions?: Reaction[];
 };
 
 type InsertBroadcastPayload = {
@@ -82,6 +90,17 @@ export default function ChatPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleReact = async (messageId: string, emoji: string) => {
+    if (!token) return;
+
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/messages/react`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messageId, emoji }),
+    });
+    // Note: Realtime will trigger a re-render once the DB confirms the update
+  };
 
   useEffect(() => {
     if (window.electronAPI?.isElectron) {
@@ -442,7 +461,7 @@ export default function ChatPage() {
           {/* Electron window controls — no-drag so buttons are clickable */}
           {isElectron && !isMac && (
             <div
-              className="flex items-center gap-1 ml-2 flex-shrink-0"
+              className="flex items-center gap-1 ml-2 shrink-0"
               style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             >
               <button
@@ -488,6 +507,7 @@ export default function ChatPage() {
                     userId={user?.id ?? ""}
                     onEdit={startEdit}
                     onDelete={handleDelete}
+					onReact={handleReact}
                   />
                 </div>
               )}
@@ -548,11 +568,14 @@ export default function ChatPage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-row items-center gap-2">
-                  <div className="text-sm text-offwhite wrap-break-words min-w-0 ml-10">
-                    {msg.content}
-                  </div>
-                </div>
+                <>
+				  <div className="flex flex-row items-center gap-2">
+				  <div className="text-sm text-offwhite wrap-break-words min-w-0 ml-10">
+					{msg.content}
+				  </div>
+				  </div>
+					<MessageReactions reactions={msg.reactions || []} />
+				  </>
               )}
             </div>
           ))}
