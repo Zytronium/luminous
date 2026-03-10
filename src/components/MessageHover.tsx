@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense, useRef} from 'react';
-import { createPortal } from 'react-dom'; // Import Portal
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import MessageOptions from './MessageOptions';
 import { Theme } from 'emoji-picker-react';
