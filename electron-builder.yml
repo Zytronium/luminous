@@ -11,6 +11,8 @@ files:
   - "!node_modules/**"
 
 extraResources:
+  - from: resources/tray-icon.png
+    to: tray-icon.png
   - from: .next/standalone/server.js
     to: app/server.js
   - from: .next/standalone/package.json
