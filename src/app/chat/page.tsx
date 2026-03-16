@@ -97,14 +97,14 @@ export default function ChatPage() {
   const [currentIcon, setCurrentIcon] = useState(DefaultIcon);
 
   const handleMouseEnter = () => {
-        const randomIcon = ReactIcons[Math.floor(Math.random() * ReactIcons.length)];
-        setCurrentIcon(randomIcon);
-    };
+    const randomIcon = ReactIcons[Math.floor(Math.random() * ReactIcons.length)];
+    setCurrentIcon(randomIcon);
+  };
 
-    const handleMouseLeave = () => {
-        setCurrentIcon(DefaultIcon);
-    };
-  
+  const handleMouseLeave = () => {
+    setCurrentIcon(DefaultIcon);
+  };
+
   // Emoji Picker State
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
@@ -130,7 +130,7 @@ export default function ChatPage() {
   };
 
   // Logic to insert emoji at the cursor position
-  const onEmojiClick = (emojiData:EmojiClickData) => {
+  const onEmojiClick = (emojiData: EmojiClickData) => {
     const cursor = inputRef.current?.selectionStart || 0;
     const text = input.slice(0, cursor) + emojiData.emoji + input.slice(cursor);
     setInput(text);
@@ -222,57 +222,37 @@ export default function ChatPage() {
     });
 
     channel
-      .on(
-        "broadcast",
-        { event: "INSERT" },
-        async ({ payload }: InsertBroadcastPayload) => {
-          const record = payload.record;
-          const displayName = await getDisplayName(record.user_id);
-          const msg: Message = {
-            id: record.id,
-            author: displayName,
-            authorId: record.user_id,
-            content: record.content,
-            time: formatTime(record.created_at),
-          };
-          setMessages((prev) => ({
-            ...prev,
-            [active]: [...(prev[active] ?? []), msg],
-          }));
-        }
-      )
-      .on(
-        "broadcast",
-        { event: "UPDATE" },
-        ({ payload }: UpdateBroadcastPayload) => {
-          const { id, content } = payload.record;
-          setMessages((prev) => {
-            const list = prev[active] ?? [];
-            return {
-              ...prev,
-              [active]: list.map((m) =>
-                m.id === id ? { ...m, content } : m
-              ),
-            };
-          });
-        }
-      )
-      .on(
-        "broadcast",
-        { event: "DELETE" },
-        ({ payload }: DeleteBroadcastPayload) => {
-          const id = payload.old_record?.id ?? payload.record?.id;
-          if (!id) return;
-          setMessages((prev) => {
-            const list = prev[active] ?? [];
-            return {
-              ...prev,
-              [active]: list.filter((m) => m.id !== id),
-            };
-          });
-          setEditingId((prev) => (prev === id ? null : prev));
-        }
-      )
+      .on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
+        const record = payload.record;
+        const displayName = await getDisplayName(record.user_id);
+        const msg: Message = {
+          id: record.id,
+          author: displayName,
+          authorId: record.user_id,
+          content: record.content,
+          time: formatTime(record.created_at),
+        };
+        setMessages((prev) => ({
+          ...prev,
+          [active]: [...(prev[active] ?? []), msg],
+        }));
+      })
+      .on("broadcast", { event: "UPDATE" }, ({ payload }: UpdateBroadcastPayload) => {
+        const { id, content } = payload.record;
+        setMessages((prev) => {
+          const list = prev[active] ?? [];
+          return { ...prev, [active]: list.map((m) => m.id === id ? { ...m, content } : m) };
+        });
+      })
+      .on("broadcast", { event: "DELETE" }, ({ payload }: DeleteBroadcastPayload) => {
+        const id = payload.old_record?.id ?? payload.record?.id;
+        if (!id) return;
+        setMessages((prev) => {
+          const list = prev[active] ?? [];
+          return { ...prev, [active]: list.filter((m) => m.id !== id) };
+        });
+        setEditingId((prev) => (prev === id ? null : prev));
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -281,16 +261,11 @@ export default function ChatPage() {
   async function send() {
     const text = input.trim();
     if (!text || !token) return;
-
     setInput("");
     inputRef.current?.focus();
-
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/message/send`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ channelId: active, content: text }),
     });
   }
@@ -324,22 +299,14 @@ export default function ChatPage() {
     setEditingId(null);
     setEditContent("");
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/messages/edit`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ messageId, newContent }),
-      }
-    );
-
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/messages/edit`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messageId, newContent }),
+    });
     if (!res.ok) {
-      fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`,
+          { headers: { Authorization: `Bearer ${token}` } }
       )
         .then((r) => r.json())
         .then((data: DbMessage[]) => {
@@ -367,27 +334,17 @@ export default function ChatPage() {
 
   async function handleDelete(messageId: string) {
     if (!token) return;
-
     setMessages((prev) => ({
       ...prev,
       [active]: (prev[active] ?? []).filter((m) => m.id !== messageId),
     }));
-
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/messages/delete`,
-      {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ messageId }),
-      }
-    );
-
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/messages/delete`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messageId }),
+    });
     if (!res.ok) {
-      fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`,
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
         .then((r) => r.json())
@@ -412,7 +369,7 @@ export default function ChatPage() {
 
   if (loading)
     return (
-      <div className="flex items-center justify-center h-screen w-screen bg-darker-blue">
+      <div className="flex items-center justify-center h-screen w-screen bg-beige dark:bg-darker-blue">
         <span className="text-teal/50 text-sm">Loading...</span>
       </div>
     );
@@ -431,14 +388,15 @@ export default function ChatPage() {
       />
 
       <div className="flex flex-col h-screen w-full min-w-0 justify-between items-center">
+
         {/* Header */}
         <div
-          className="w-full flex items-center border-b-2 border-beige/25 mt-2 pb-2 gap-2 pr-4"
+          className="w-full flex items-center border-b-2 border-darker-blue/20 dark:border-beige/25 mt-2 pb-2 gap-2 pr-4"
           style={isElectron ? ({ WebkitAppRegion: "drag" } as any) : undefined}
         >
           <button
             onClick={() => setSidebarOpen(true)}
-            className="md:hidden shrink-0 ml-2 p-1.5 rounded-full hover:bg-beige/10 transition-all cursor-pointer"
+            className="md:hidden shrink-0 ml-2 p-1.5 rounded-full hover:bg-darker-blue/10 dark:hover:bg-beige/10 transition-all cursor-pointer"
             style={isElectron ? ({ WebkitAppRegion: "no-drag" } as any) : undefined}
           >
             <Menu size={20} className="text-teal" />
@@ -447,33 +405,35 @@ export default function ChatPage() {
           {activeChannel ? (
             <div className="flex items-center min-w-0 ml-2 flex-1">
               <Hash size={20} className="text-teal ml-2" />
-              <span className="text-offwhite font-bold text-lg ml-1 truncate">{activeChannel.name}</span>
+              <span className="text-darker-blue dark:text-offwhite font-bold text-lg ml-1 truncate">
+                {activeChannel.name}
+              </span>
               <span className="text-teal/75 font-medium text-xs ml-5 border-l border-teal/25 pl-4 hidden sm:block truncate">
                 {activeChannel.description}
               </span>
             </div>
           ) : (
-            <span className="text-offwhite/40 text-sm ml-2 flex-1">
+            <span className="text-darker-blue/40 dark:text-offwhite/40 text-sm ml-2 flex-1">
               {loadingChannels ? "Loading..." : "No channels"}
             </span>
           )}
 
           {isElectron && !isMac && (
             <div className="flex items-center gap-1 ml-2 shrink-0" style={{ WebkitAppRegion: "no-drag" } as any}>
-              <button onClick={() => window.electronAPI?.minimize()} className="p-2 text-offwhite/50 hover:text-offwhite"><Minus size={14}/></button>
-              <button onClick={() => window.electronAPI?.maximize()} className="p-2 text-offwhite/50 hover:text-offwhite"><Square size={12}/></button>
-              <button onClick={() => window.electronAPI?.close()} className="p-2 text-offwhite/50 hover:bg-red hover:text-white"><X size={14}/></button>
+              <button onClick={() => window.electronAPI?.minimize()} className="p-2 text-darker-blue/50 dark:text-offwhite/50 hover:text-darker-blue dark:hover:text-offwhite"><Minus size={14}/></button>
+              <button onClick={() => window.electronAPI?.maximize()} className="p-2 text-darker-blue/50 dark:text-offwhite/50 hover:text-darker-blue dark:hover:text-offwhite"><Square size={12}/></button>
+              <button onClick={() => window.electronAPI?.close()} className="p-2 text-darker-blue/50 dark:text-offwhite/50 hover:bg-red hover:text-white"><X size={14}/></button>
             </div>
           )}
         </div>
 
         {/* Messages */}
-        <div className="flex-1 w-full overflow-y-auto min-h-0 bg-darkest-blue">
+        <div className="flex-1 w-full overflow-y-auto min-h-0 bg-beige dark:bg-darkest-blue">
           {msgs.length === 0 && !loadingChannels && (
-            <p className="text-center text-offwhite/75 text-sm mt-4">Channel empty.</p>
+            <p className="text-center text-darker-blue/75 dark:text-offwhite/75 text-sm mt-4">Channel empty.</p>
           )}
           {msgs.map((msg) => (
-            <div key={msg.id} className="group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-white/5 transition-colors">
+            <div key={msg.id} className="group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-darker-blue/5 dark:hover:bg-white/5 transition-colors">
               {editingId !== msg.id && (
                 <div className="absolute right-4 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                   <MessageHover
@@ -489,13 +449,17 @@ export default function ChatPage() {
 
               <div className="flex flex-row items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-blue flex items-center justify-center shrink-0">
-                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-neon-teal">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-neon-teal">
                     <circle cx="12" cy="8" r="4" fill="currentColor" />
                     <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" fill="currentColor" />
                   </svg>
                 </div>
-                <span className="text-sm font-semibold text-beige truncate flex-1">{msg.author}</span>
-                <span className="text-xs text-beige/75 shrink-0">{msg.time}</span>
+                <span className="text-sm font-semibold text-darker-blue dark:text-beige truncate flex-1">
+                  {msg.author}
+                </span>
+                <span className="text-xs text-darker-blue/75 dark:text-beige/75 shrink-0">
+                  {msg.time}
+                </span>
               </div>
 
               {editingId === msg.id ? (
@@ -505,16 +469,22 @@ export default function ChatPage() {
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     onKeyDown={handleEditKey}
-                    className="w-full bg-dark-blue border border-teal/40 text-offwhite text-sm rounded-lg px-3 py-2 outline-none resize-none"
+                    className="w-full bg-beige dark:bg-dark-blue border border-teal/40 text-darker-blue dark:text-offwhite text-sm rounded-lg px-3 py-2 outline-none resize-none"
                   />
-                  <div className="flex items-center gap-2 text-xs text-beige/50">
-                    <button onClick={saveEdit} className="flex items-center gap-1 px-2.5 py-1 rounded bg-teal/15 text-teal hover:bg-teal/25"><Check size={12}/>Save</button>
-                    <button onClick={() => setEditingId(null)} className="flex items-center gap-1 px-2.5 py-1 rounded hover:bg-beige/10"><Ban size={12}/>Cancel</button>
+                  <div className="flex items-center gap-2 text-xs text-darker-blue/50 dark:text-beige/50">
+                    <button onClick={saveEdit} className="flex items-center gap-1 px-2.5 py-1 rounded bg-teal/15 text-teal hover:bg-teal/25">
+                      <Check size={12} />Save
+                    </button>
+                    <button onClick={() => setEditingId(null)} className="flex items-center gap-1 px-2.5 py-1 rounded hover:bg-darker-blue/10 dark:hover:bg-beige/10">
+                      <Ban size={12} />Cancel
+                    </button>
                   </div>
                 </div>
               ) : (
                 <>
-                  <div className="text-sm text-offwhite wrap-break-words ml-10">{msg.content}</div>
+                  <div className="text-sm text-darker-blue dark:text-offwhite wrap-break-words ml-10">
+                    {msg.content}
+                  </div>
                   <MessageReactions reactions={msg.reactions || []} />
                 </>
               )}
@@ -525,14 +495,13 @@ export default function ChatPage() {
 
         {/* Input & Emoji Picker Area */}
         <div className="flex flex-col w-full px-4 pb-4 pt-2 relative">
-          
+
           {/* Floating Emoji Picker Popup */}
           {showEmojiPicker && (
             <div className="absolute bottom-20 right-4 z-50">
               {/* Backdrop listener to close when clicking outside */}
               <div className="fixed inset-0" onClick={() => setShowEmojiPicker(false)} />
-              
-              <div className="relative shadow-2xl border border-teal/30 rounded-lg overflow-hidden bg-darkest-blue">
+              <div className="relative shadow-2xl border border-teal/30 rounded-lg overflow-hidden bg-beige dark:bg-darkest-blue">
                 <Suspense fallback={
                   <div className="w-[350px] h-[400px] flex flex-col items-center justify-center border border-teal/20 rounded-lg">
                     <img src={DefaultIcon} className="w-8 h-8 animate-bounce opacity-50 mb-2" alt="loading" />
@@ -561,9 +530,9 @@ export default function ChatPage() {
                 placeholder={activeChannel ? `Message #${activeChannel.name}` : ""}
                 disabled={!activeChannel}
                 rows={1}
-                className="flex-1 bg-transparent text-offwhite placeholder:text-beige/40 rounded-full h-11 border-2 border-teal/25 pl-5 pr-12 py-2.5 outline-none focus:border-teal/60 transition-colors text-sm resize-none disabled:opacity-40 min-w-0"
+                className="flex-1 bg-transparent text-darker-blue dark:text-offwhite placeholder:text-darker-blue/40 dark:placeholder:text-beige/40 rounded-full h-11 border-2 border-teal/25 pl-5 pr-12 py-2.5 outline-none focus:border-teal/60 transition-colors text-sm resize-none disabled:opacity-40 min-w-0"
               />
-              
+
               {/* Custom Image Emoji Trigger */}
               <button
                 type="button"
@@ -573,14 +542,14 @@ export default function ChatPage() {
                 disabled={!activeChannel}
                 className="absolute right-4 p-1 hover:scale-110 active:scale-95 transition-all disabled:opacity-0 disabled:pointer-events-none"
               >
-                <Image 
-                  src={currentIcon} 
-                  alt="emoji picker" 
+                <Image
+                  src={currentIcon}
+                  alt="emoji picker"
                   width={24}
                   height={24}
                   className={`object-contain transition-all duration-150 transform hover:scale-110 ${
                     showEmojiPicker ? 'opacity-100' : 'opacity-60 hover:opacity-100'
-                  }`} 
+                  }`}
                 />
               </button>
             </div>

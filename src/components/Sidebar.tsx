@@ -35,9 +35,11 @@ function UserStrip({ user }: { user: { displayName: string } }) {
           <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" fill="currentColor" />
         </svg>
       </div>
+      {/* Always use darker-blue — sidebar bg is always teal, not theme-dependent */}
       <span className="text-sm font-semibold text-darker-blue truncate flex-1">{user.displayName}</span>
-      <Link className="shrink-0 p-1 rounded-full hover:bg-darker-blue/15 transition-all cursor-pointer"
-            href="/settings"
+      <Link
+        className="shrink-0 p-1 rounded-full hover:bg-darker-blue/15 transition-all cursor-pointer"
+        href="/settings"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-darker-blue/70">
           <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -50,7 +52,8 @@ function UserStrip({ user }: { user: { displayName: string } }) {
 
 function SidebarInner({ channels, active, setActive, user, onClose }: SidebarProps & { onClose?: () => void }) {
   return (
-    <div className="rounded-r-4xl bg-neon-teal dark:bg-teal p-2 h-full flex flex-col">
+    // bg-teal with no dark: variant - sidebar always looks like dark mode regardless of theme
+    <div className="rounded-r-4xl bg-teal p-2 h-full flex flex-col">
       <div className="flex items-center justify-between">
         <Logo />
         {/* Close button — mobile only */}
@@ -62,8 +65,13 @@ function SidebarInner({ channels, active, setActive, user, onClose }: SidebarPro
       </div>
       <hr className="my-2 border-darker-blue/25" />
       <div className="flex flex-row justify-center mt-2 mb-4 mx-auto">
-        <span className="whitespace-nowrap bg-darker-blue/75 text-sm rounded-l-full px-4 py-1.5 cursor-pointer hover:bg-darker-blue/85 transition-all border-r border-darker-blue/25">Channels</span>
-        <span className="whitespace-nowrap bg-darker-blue/25 text-sm rounded-r-full px-4 py-1.5 cursor-pointer hover:bg-darker-blue/35 transition-all">User DMs</span>
+        {/* Explicit text-offwhite so it doesn't inherit body color in light mode */}
+        <span className="whitespace-nowrap text-offwhite bg-darker-blue/75 text-sm rounded-l-full px-4 py-1.5 cursor-pointer hover:bg-darker-blue/85 transition-all border-r border-darker-blue/25">
+          Channels
+        </span>
+        <span className="whitespace-nowrap text-darker-blue bg-darker-blue/25 text-sm rounded-r-full px-4 py-1.5 cursor-pointer hover:bg-darker-blue/35 transition-all">
+          User DMs
+        </span>
       </div>
       <div className="flex flex-col gap-2 flex-1 overflow-y-auto">
         {channels.map((ch) => (
@@ -71,10 +79,12 @@ function SidebarInner({ channels, active, setActive, user, onClose }: SidebarPro
             key={ch.id}
             onClick={() => { setActive(ch.id); onClose?.(); }}
             className={`flex flex-row items-center text-left text-sm px-3 py-1.5 rounded-full transition-all cursor-pointer ${
-              active === ch.id ? "bg-darker-blue/75 text-offwhite" : "text-darker-blue hover:bg-darker-blue/15"
-              }`}
+              active === ch.id
+                ? "bg-darker-blue/75 text-offwhite"
+                : "text-darker-blue hover:bg-darker-blue/15"
+            }`}
           >
-            <Hash size={12} className="mr-0.5"/>
+            <Hash size={12} className="mr-0.5" />
             {ch.name}
           </button>
         ))}

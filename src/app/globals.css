@@ -98,3 +98,17 @@ a {
 *::-webkit-scrollbar-thumb:hover {
   background: #54f4d0;
 }
+
+/* Light mode overrides */
+:root:not(.dark) * {
+  scrollbar-color: #1ED2AF #e8e0c8;
+}
+:root:not(.dark) *::-webkit-scrollbar-track {
+  background: #e8e0c8;
+}
+:root:not(.dark) *::-webkit-scrollbar-thumb {
+  background: #1ED2AF;
+}
+:root:not(.dark) *::-webkit-scrollbar-thumb:hover {
+  background: #54f4d0;
+}
