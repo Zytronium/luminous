@@ -12,10 +12,11 @@ not a Discord clone, a Discord *server* clone. Only one server, but multiple cha
 and private DMs between users.
 
 ### Stretch goals:
-- Voice chat and/or video calls
 - E2E encryption
+- Voice chat and/or video calls
 - Cross-platform compatibility with Discord and maybe Root via Discord bot/webhook
 - Premium paid features and/or donations to help support infrastructure costs (maybe)
+- 2-factor authentication
 
 ### Expected Challenges:
 - Designing and hosting a custom encrypted database
