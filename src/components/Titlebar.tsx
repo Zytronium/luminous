@@ -5,19 +5,6 @@ import Image from "next/image";
 import { Minus, Square, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 
-// Extend Window type to include electronAPI
-declare global {
-  interface Window {
-    electronAPI?: {
-      isElectron: boolean;
-      platform: string;
-      minimize: () => void;
-      maximize: () => void;
-      close: () => void;
-    };
-  }
-}
-
 export default function TitleBar() {
   const [isElectron, setIsElectron] = useState(false);
   const [platform, setPlatform] = useState("");

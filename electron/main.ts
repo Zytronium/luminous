@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain } from "electron";
+import { app, BrowserWindow, shell, Menu, Tray, nativeImage, Notification, ipcMain } from "electron";
 import { join } from "path";
 import { spawn, ChildProcess } from "child_process";
 import { getPort } from "get-port-please";
@@ -31,6 +31,21 @@ ipcMain.on("window:close", () => {
 
 ipcMain.on("tray:setMinimizeToTray", (_, value: boolean) => {
   minimizeToTray = value;
+});
+
+ipcMain.on("notification:send", (_, title: string, body: string) => {
+  if (!Notification.isSupported() || mainWindow?.isFocused())
+    return;
+
+  const notification = new Notification({
+    title,
+    body,
+    icon: getIconPath(),
+  });
+
+  notification.on("click", () => showWindow());
+
+  notification.show();
 });
 
 async function startNextServer(): Promise<number> {

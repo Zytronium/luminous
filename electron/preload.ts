@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   maximize: () => ipcRenderer.send("window:maximize"),
   close: () => ipcRenderer.send("window:close"),
   setMinimizeToTray: (value: boolean) => ipcRenderer.send("tray:setMinimizeToTray", value),
+  notify: (title: string, body: string) => ipcRenderer.send("notification:send", title, body),
 });

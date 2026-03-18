@@ -116,6 +116,9 @@ export default function ChatPage() {
   // Profile cache: userId -> displayName
   const profileCache = useRef<Map<string, string>>(new Map());
 
+  // Notifications
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -170,6 +173,10 @@ export default function ChatPage() {
   useEffect(() => {
     if (editingId) editRef.current?.focus();
   }, [editingId]);
+
+  useEffect(() => {
+    audioRef.current = new Audio("/audio/ping.ogg");
+  }, []);
 
   const getDisplayName = useCallback(async (userId: string): Promise<string> => {
     if (profileCache.current.has(userId))
@@ -232,6 +239,12 @@ export default function ChatPage() {
           content: record.content,
           time: formatTime(record.created_at),
         };
+
+        if (isElectron && record.user_id !== user?.id) {
+          window.electronAPI?.notify(displayName, record.content);
+          audioRef.current?.play().catch(() => {});
+        }
+
         setMessages((prev) => ({
           ...prev,
           [active]: [...(prev[active] ?? []), msg],
