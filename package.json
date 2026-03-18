@@ -1,6 +1,6 @@
 {
   "name": "luminous",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "Exclusive unofficial chat app for Atlas School students and alumni",
   "author": {
@@ -24,7 +24,7 @@
     "@supabase/supabase-js": "^2.98.0",
     "emoji-picker-react": "^4.18.0",
     "lucide-react": "^0.575.0",
-    "next": "16.1.6",
+    "next": "16.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

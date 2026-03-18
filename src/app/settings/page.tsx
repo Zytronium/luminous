@@ -35,6 +35,25 @@ export default function SettingsPage() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [loggingOut, setLoggingOut] = useState(false);
 
+  const isElectron = typeof window !== "undefined" && !!(window as any).electronAPI?.isElectron;
+
+  const [minimizeToTray, setMinimizeToTray] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = localStorage.getItem("minimizeToTray");
+    return stored === null ? true : stored === "true"; // default on
+  });
+
+  // Sync to main process on mount and whenever the value changes
+  useEffect(() => {
+    if (!isElectron) return;
+    (window as any).electronAPI.setMinimizeToTray(minimizeToTray);
+  }, [minimizeToTray]);
+
+  function changeMinimizeToTray(value: boolean) {
+    localStorage.setItem("minimizeToTray", String(value));
+    setMinimizeToTray(value);
+  }
+
   // Sync local copy when context finishes loading (e.g. on first mount)
   useEffect(() => {
     if (!settingsLoading) setSettings(ctxSettings);
@@ -187,6 +206,21 @@ export default function SettingsPage() {
         </SettingRow>
 
       </Section>
+
+      {/* App - Electron only */}
+      {isElectron && (
+          <Section label="App">
+            <SettingRow
+                title="Minimize to Tray on Close"
+                description="Keep Luminous running in the background when you close the window so you can receive notifications."
+            >
+              <Toggle
+                  checked={minimizeToTray}
+                  onChange={changeMinimizeToTray}
+              />
+            </SettingRow>
+          </Section>
+      )}
 
       {/* Account */}
       <Section label="Account">

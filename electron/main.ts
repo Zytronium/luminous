@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, Menu, ipcMain } from "electron";
+import { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain } from "electron";
 import { join } from "path";
 import { spawn, ChildProcess } from "child_process";
 import { getPort } from "get-port-please";
@@ -6,7 +6,10 @@ import { getPort } from "get-port-please";
 Menu.setApplicationMenu(null);
 
 let mainWindow: BrowserWindow;
+let tray: Tray | null = null;
 let nextServer: ChildProcess | null = null;
+let isQuitting = false;
+let minimizeToTray = true;
 
 // Window control IPC handlers
 ipcMain.on("window:minimize", () => mainWindow?.minimize());
@@ -16,7 +19,19 @@ ipcMain.on("window:maximize", () => {
   else
     mainWindow?.maximize();
 });
-ipcMain.on("window:close", () => mainWindow?.close());
+
+ipcMain.on("window:close", () => {
+  if (minimizeToTray) {
+    mainWindow?.hide();
+  } else {
+    isQuitting = true;
+    app.quit();
+  }
+});
+
+ipcMain.on("tray:setMinimizeToTray", (_, value: boolean) => {
+  minimizeToTray = value;
+});
 
 async function startNextServer(): Promise<number> {
   const port = await getPort({ portRange: [30011, 50000] });
@@ -65,6 +80,62 @@ async function startNextServer(): Promise<number> {
   });
 }
 
+function getIconPath(): string {
+  if (process.env.NODE_ENV === "development") {
+    return join(__dirname, "../resources/icon.png");
+  }
+  return join(process.resourcesPath, "icon.png");
+}
+
+function getTrayIconPath(): string {
+  if (process.env.NODE_ENV === "development") {
+    return join(__dirname, "../resources/tray-icon.png");
+  }
+  return join(process.resourcesPath, "tray-icon.png");
+}
+
+function showWindow() {
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createTray() {
+  const icon = nativeImage.createFromPath(getTrayIconPath()).resize({ width: 16, height: 16 });
+  tray = new Tray(icon);
+  tray.setToolTip("Luminous");
+
+  // Context menu is the primary interaction on Linux (click events are unreliable).
+  // It also serves as the right-click menu on Windows.
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Open Luminous",
+      click: () => showWindow(),
+    },
+    { type: "separator" },
+    {
+      label: "Quit",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  // On Windows, a single click on the tray icon should toggle the window.
+  // On Linux this event may not fire depending on the desktop environment,
+  // which is why the context menu above is the reliable fallback.
+  tray.on("click", () => {
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+    } else {
+      showWindow();
+    }
+  });
+}
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -74,7 +145,7 @@ async function createWindow() {
     show: false,
     frame: false,
     titleBarStyle: "hidden", // remove native app title bar
-    icon: join(process.resourcesPath, "../icon.png"),
+    icon: getIconPath(),
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -87,6 +158,18 @@ async function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
+  });
+
+  // Intercept the close button: hide to tray instead of quitting,
+  // unless we're doing a real quit (e.g. from the tray menu or app.quit() or if close to tray setting is off).
+  mainWindow.on("close", (event) => {
+    if (!isQuitting && minimizeToTray) {
+      event.preventDefault();
+      mainWindow.hide();
+    } else if (!isQuitting) {
+      isQuitting = true;
+      app.quit();
+    }
   });
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
@@ -104,18 +187,27 @@ async function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await createWindow();
+  createTray();
+});
 
 app.on("window-all-closed", () => {
-  nextServer?.kill();
-  if (process.platform !== "darwin") app.quit();
+  // Don't quit when all windows are closed; we're a tray app.
+  // The user quits explicitly via the tray menu.
+  // Exception: quit normally on platforms that don't have a tray convention (none currently).
+  if (process.platform !== "darwin") {
+    // Intentionally do nothing, keep running in tray.
+  }
 });
 
 app.on("before-quit", () => {
+  isQuitting = true;
   nextServer?.kill();
 });
 
 app.on("activate", () => {
+  // macOS: re-create window if dock icon is clicked and no windows are open
   if (BrowserWindow.getAllWindows().length === 0)
     createWindow();
 });
