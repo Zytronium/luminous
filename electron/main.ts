@@ -9,6 +9,7 @@ let mainWindow: BrowserWindow;
 let tray: Tray | null = null;
 let nextServer: ChildProcess | null = null;
 let isQuitting = false;
+let minimizeToTray = true;
 
 // Window control IPC handlers
 ipcMain.on("window:minimize", () => mainWindow?.minimize());
@@ -18,7 +19,19 @@ ipcMain.on("window:maximize", () => {
   else
     mainWindow?.maximize();
 });
-ipcMain.on("window:close", () => mainWindow?.hide());
+
+ipcMain.on("window:close", () => {
+  if (minimizeToTray) {
+    mainWindow?.hide();
+  } else {
+    isQuitting = true;
+    app.quit();
+  }
+});
+
+ipcMain.on("tray:setMinimizeToTray", (_, value: boolean) => {
+  minimizeToTray = value;
+});
 
 async function startNextServer(): Promise<number> {
   const port = await getPort({ portRange: [30011, 50000] });
@@ -148,11 +161,14 @@ async function createWindow() {
   });
 
   // Intercept the close button: hide to tray instead of quitting,
-  // unless we're doing a real quit (e.g. from the tray menu or app.quit()).
+  // unless we're doing a real quit (e.g. from the tray menu or app.quit() or if close to tray setting is off).
   mainWindow.on("close", (event) => {
-    if (!isQuitting) {
+    if (!isQuitting && minimizeToTray) {
       event.preventDefault();
       mainWindow.hide();
+    } else if (!isQuitting) {
+      isQuitting = true;
+      app.quit();
     }
   });
 
