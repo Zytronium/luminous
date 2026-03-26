@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { SendHorizonal, Menu, Hash, Minus, Square, X, Check, Ban } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import MessageHover from "@/components/MessageHover";
 import MessageReactions from "@/components/MessageReactions";
@@ -85,6 +86,7 @@ function formatTime(iso: string) {
 export default function ChatPage() {
   const { token, user, loading } = useAuth();
   const router = useRouter();
+  const { setActiveChannel } = useNotifications();
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [active, setActive] = useState<string>("");
@@ -115,9 +117,6 @@ export default function ChatPage() {
 
   // Profile cache: userId -> displayName
   const profileCache = useRef<Map<string, string>>(new Map());
-
-  // Notifications
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -177,11 +176,12 @@ export default function ChatPage() {
 
   useEffect(() => {
     activeRef.current = active;
-  }, [active]);
+    setActiveChannel(active);
+  }, [active, setActiveChannel]);
 
   useEffect(() => {
-    audioRef.current = new Audio("/audio/ping.ogg");
-  }, []);
+    return () => setActiveChannel(null);
+  }, [setActiveChannel]);
 
   const getDisplayName = useCallback(async (userId: string): Promise<string> => {
     if (profileCache.current.has(userId))
@@ -195,39 +195,6 @@ export default function ChatPage() {
     profileCache.current.set(userId, name);
     return name;
   }, []);
-
-  // Subscribe to ALL channels for background notifications.
-  // Uses activeRef (not active) so this effect doesn't re-run on every
-  // channel switch; it only re-runs when the channel list itself changes.
-  useEffect(() => {
-    if (!token || channels.length === 0)
-      return;
-
-    const subs = channels.map((ch) => {
-      const sub = supabase.channel(`channel:${ch.id}:messages`, {  // ← was notify:${ch.id}
-        config: { private: true },
-      });
-
-      sub.on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
-        const record = payload.record;
-        // Skip own messages and skip the active channel. That subscription already handles notifications for it.
-        if (record.user_id === user?.id || activeRef.current === ch.id)
-          return;
-
-        const displayName = await getDisplayName(record.user_id);
-        const title = `${displayName} (#${ch.name})`;
-        if (isElectron) {
-          window.electronAPI?.notify(title, record.content);
-        }
-        audioRef.current?.play().catch(() => {});
-      });
-
-      sub.subscribe();
-      return sub;
-    });
-
-    return () => { subs.forEach((s) => supabase.removeChannel(s)); };
-  }, [channels, token, user?.id, isElectron, getDisplayName]);
 
   useEffect(() => {
     if (!token) return;
@@ -262,7 +229,7 @@ export default function ChatPage() {
         setMessages((prev) => ({ ...prev, [active]: mapped }));
       });
 
-    const channel = supabase.channel(`channel:${active}:messages`, {
+    const channel = supabase.channel(`chat-view:${active}:messages`, {
       config: { private: true },
     });
 
@@ -270,7 +237,6 @@ export default function ChatPage() {
       .on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
         const record = payload.record;
         const displayName = await getDisplayName(record.user_id);
-        const title = `${displayName} (#${activeChannel?.name})`;
         const msg: Message = {
           id: record.id,
           author: displayName,
@@ -278,11 +244,6 @@ export default function ChatPage() {
           content: record.content,
           time: formatTime(record.created_at),
         };
-
-        if (isElectron && record.user_id !== user?.id) {
-          window.electronAPI?.notify(title, record.content);
-          audioRef.current?.play().catch(() => {});
-        }
 
         setMessages((prev) => ({
           ...prev,
