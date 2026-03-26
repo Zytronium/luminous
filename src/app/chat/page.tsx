@@ -215,8 +215,9 @@ export default function ChatPage() {
           return;
 
         const displayName = await getDisplayName(record.user_id);
+        const title = `${displayName} (#${ch.name})`;
         if (isElectron) {
-          window.electronAPI?.notify(displayName, record.content);
+          window.electronAPI?.notify(title, record.content);
         }
         audioRef.current?.play().catch(() => {});
       });
@@ -269,6 +270,7 @@ export default function ChatPage() {
       .on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
         const record = payload.record;
         const displayName = await getDisplayName(record.user_id);
+        const title = `${displayName} (#${activeChannel?.name})`;
         const msg: Message = {
           id: record.id,
           author: displayName,
@@ -278,7 +280,7 @@ export default function ChatPage() {
         };
 
         if (isElectron && record.user_id !== user?.id) {
-          window.electronAPI?.notify(displayName, record.content);
+          window.electronAPI?.notify(title, record.content);
           audioRef.current?.play().catch(() => {});
         }
 
