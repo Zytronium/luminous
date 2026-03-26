@@ -121,6 +121,7 @@ export default function ChatPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const activeRef = useRef<string>("");
 
   const handleReact = async (messageId: string, emoji: string) => {
     if (!token) return;
@@ -175,6 +176,10 @@ export default function ChatPage() {
   }, [editingId]);
 
   useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  useEffect(() => {
     audioRef.current = new Audio("/audio/ping.ogg");
   }, []);
 
@@ -190,6 +195,38 @@ export default function ChatPage() {
     profileCache.current.set(userId, name);
     return name;
   }, []);
+
+  // Subscribe to ALL channels for background notifications.
+  // Uses activeRef (not active) so this effect doesn't re-run on every
+  // channel switch; it only re-runs when the channel list itself changes.
+  useEffect(() => {
+    if (!token || channels.length === 0)
+      return;
+
+    const subs = channels.map((ch) => {
+      const sub = supabase.channel(`channel:${ch.id}:messages`, {  // ← was notify:${ch.id}
+        config: { private: true },
+      });
+
+      sub.on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
+        const record = payload.record;
+        // Skip own messages and skip the active channel. That subscription already handles notifications for it.
+        if (record.user_id === user?.id || activeRef.current === ch.id)
+          return;
+
+        const displayName = await getDisplayName(record.user_id);
+        if (isElectron) {
+          window.electronAPI?.notify(displayName, record.content);
+        }
+        audioRef.current?.play().catch(() => {});
+      });
+
+      sub.subscribe();
+      return sub;
+    });
+
+    return () => { subs.forEach((s) => supabase.removeChannel(s)); };
+  }, [channels, token, user?.id, isElectron, getDisplayName]);
 
   useEffect(() => {
     if (!token) return;

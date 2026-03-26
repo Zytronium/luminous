@@ -32,7 +32,6 @@
 
 # Current Branch Todo List (notifications)
 
-- Make notifications appear no matter what channel the message is in (in the future, exclude hidden channels)
 - Add notification preferences in settings (global settings)
 - Create a sound effect to replace placeholder ping sound
 - Take the user to the channel where the ping occurred and scroll to the message upon clicking on the notification
