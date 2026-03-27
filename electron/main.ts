@@ -33,7 +33,7 @@ ipcMain.on("tray:setMinimizeToTray", (_, value: boolean) => {
   minimizeToTray = value;
 });
 
-ipcMain.on("notification:send", (_, title: string, body: string) => {
+ipcMain.on("notification:send", (_, title: string, body: string, channelId: string, messageId: string) => {
   if (!Notification.isSupported() || mainWindow?.isFocused())
     return;
 
@@ -43,7 +43,10 @@ ipcMain.on("notification:send", (_, title: string, body: string) => {
     icon: getIconPath(),
   });
 
-  notification.on("click", () => showWindow());
+  notification.on("click", () => {
+    showWindow();
+    mainWindow.webContents.send("notification:clicked", { channelId, messageId });
+  });
 
   notification.show();
 });

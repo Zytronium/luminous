@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, Suspense, lazy } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { SendHorizonal, Menu, Hash, Minus, Square, X, Check, Ban } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -83,10 +83,11 @@ function formatTime(iso: string) {
   });
 }
 
-export default function ChatPage() {
+function ChatPageInner() {
   const { token, user, loading } = useAuth();
   const router = useRouter();
   const { setActiveChannel } = useNotifications();
+  const searchParams = useSearchParams();
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [active, setActive] = useState<string>("");
@@ -121,6 +122,7 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const activeRef = useRef<string>("");
+  const pendingScrollRef = useRef<string | null>(null);
 
   const handleReact = async (messageId: string, emoji: string) => {
     if (!token) return;
@@ -154,7 +156,21 @@ export default function ChatPage() {
   }, [token, loading, router]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const messageId = searchParams.get("message");
+    if (!messageId)
+      bottomRef.current?.scrollIntoView({ behavior: "instant" });
+
+    // If we have a pending scroll target and the messages for this
+    // channel have just loaded, scroll to it now
+    if (pendingScrollRef.current && (messages[active]?.length ?? 0) > 0) {
+      const messageId = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+      setTimeout(() => {
+        const el = document.getElementById(`message-${messageId}`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        el?.classList.add("highlight");
+      }, 50); // just enough time for the DOM to paint
+    }
   }, [messages, active]);
 
   useEffect(() => {
@@ -182,6 +198,22 @@ export default function ChatPage() {
   useEffect(() => {
     return () => setActiveChannel(null);
   }, [setActiveChannel]);
+
+  useEffect(() => {
+    const channelId = searchParams.get("channel");
+    const messageId = searchParams.get("message");
+    if (!channelId || channels.length === 0) return;
+
+    // Switch to the right channel
+    setActive(channelId);
+
+    if (messageId) {
+      pendingScrollRef.current = messageId;
+    }
+
+    // Clear params from URL so a refresh doesn't re-trigger this
+    router.replace("/chat");
+  }, [searchParams, channels]);
 
   const getDisplayName = useCallback(async (userId: string): Promise<string> => {
     if (profileCache.current.has(userId))
@@ -446,7 +478,7 @@ export default function ChatPage() {
             <p className="text-center text-darker-blue/75 dark:text-offwhite/75 text-sm mt-4">Channel empty.</p>
           )}
           {msgs.map((msg) => (
-            <div key={msg.id} className="group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-darker-blue/5 dark:hover:bg-white/5 transition-colors">
+            <div key={msg.id} id={`message-${msg.id}`} className="group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-darker-blue/5 dark:hover:bg-white/5 transition-colors">
               {editingId !== msg.id && (
                 <div className="absolute right-4 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                   <MessageHover
@@ -578,5 +610,13 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+      <Suspense>
+        <ChatPageInner />
+      </Suspense>
   );
 }

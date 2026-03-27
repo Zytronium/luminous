@@ -6,6 +6,7 @@ interface Window {
         maximize: () => void;
         close: () => void;
         setMinimizeToTray: (value: boolean) => void;
-        notify: (title: string, body: string) => void;
+        notify: (title: string, body: string, channelId: string, messageId: string) => void;
+        onNotificationClick: (callback: (channelId: string, messageId: string) => void) => void;
     };
 }

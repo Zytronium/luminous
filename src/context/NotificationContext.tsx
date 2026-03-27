@@ -3,6 +3,7 @@
 import {createSupabaseClient} from "@/lib/supabase/client";
 import {createContext, useCallback, useContext, useEffect, useRef, useState} from "react";
 import {useAuth} from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 type Channel = { id: string; name: string };
 
@@ -29,6 +30,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const isElectronRef = useRef<boolean>(false);
     const profileCache = useRef<Map<string, string>>(new Map());
+    const router = useRouter();
+
 
     const setActiveChannel = useCallback((id: string | null) => {
         activeChannelRef.current = id;
@@ -51,6 +54,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         audioRef.current = new Audio("/audio/ping.ogg");
         isElectronRef.current = !!window.electronAPI?.isElectron;
     }, []);
+
+    // Register the click handler on mount
+    useEffect(() => {
+        if (!window.electronAPI?.isElectron) return;
+        window.electronAPI.onNotificationClick((channelId, messageId) => {
+            router.push(`/chat?channel=${channelId}&message=${messageId}`);
+        });
+    }, [router]);
 
     useEffect(() => {
         const onFocus = () => { windowFocusedRef.current = true; };
@@ -97,8 +108,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 const title = `${displayName} (#${ch.name})`;
 
                 if (isElectronRef.current) {
-                    window.electronAPI?.notify(title, record.content);
+                    window.electronAPI?.notify(title, record.content, ch.id, record.id);
                 }
+
                 audioRef.current?.play().catch(() => {});
             });
 

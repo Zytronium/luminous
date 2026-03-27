@@ -77,6 +77,15 @@ a {
   @apply bg-red text-offwhite
 }
 
+.highlight {
+  animation: highlight-fade 2s ease-out;
+}
+
+@keyframes highlight-fade {
+  0%   { background-color: rgb(var(--color-teal) / 0.2); }
+  100% { background-color: transparent; }
+}
+
 /* Firefox */
 * {
   scrollbar-color: #1ED2AF #00002e;

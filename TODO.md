@@ -34,5 +34,5 @@
 
 - Add notification preferences in settings (global settings)
 - Create a sound effect to replace placeholder ping sound
-- Take the user to the channel where the ping occurred and scroll to the message upon clicking on the notification
+- Scroll to the message upon clicking on the notification
 - Make notification sounds in browser too if electron is not also open (not sure how to do this one but I have ideas)
