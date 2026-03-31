@@ -34,4 +34,4 @@
 
 - Add notification preferences in settings (global settings)
 - Scroll to the message upon clicking on the notification
-- Make notification sounds in browser too if electron is not also open (not sure how to do this one but I have ideas)
+- Only make notification sounds in browser if electron is not also open (not sure how to do this one but I have ideas)
