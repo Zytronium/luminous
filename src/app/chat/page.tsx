@@ -261,44 +261,53 @@ function ChatPageInner() {
         setMessages((prev) => ({ ...prev, [active]: mapped }));
       });
 
-    const channel = supabase.channel(`chat-view:${active}:messages`, {
-      config: { private: true },
-    });
-
-  channel
-    .on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
-    const channelId = active;
-        const record = payload.record;
-        const displayName = await getDisplayName(record.user_id);
-        const msg: Message = {
-          id: record.id,
-          author: displayName,
-          authorId: record.user_id,
-          content: record.content,
-          time: formatTime(record.created_at),
-        };
-        setMessages((prev) => ({
-          ...prev,
-        [channelId]: [...(prev[channelId] ?? []), msg],
-        }));
-      })
-      .on("broadcast", { event: "UPDATE" }, ({ payload }: UpdateBroadcastPayload) => {
-        const { id, content } = payload.record;
-        setMessages((prev) => {
-          const list = prev[active] ?? [];
-          return { ...prev, [active]: list.map((m) => m.id === id ? { ...m, content } : m) };
-        });
-      })
-      .on("broadcast", { event: "DELETE" }, ({ payload }: DeleteBroadcastPayload) => {
-        const id = payload.old_record?.id ?? payload.record?.id;
-        if (!id) return;
-        setMessages((prev) => {
-          const list = prev[active] ?? [];
-          return { ...prev, [active]: list.filter((m) => m.id !== id) };
-        });
-        setEditingId((prev) => (prev === id ? null : prev));
-      })
-      .subscribe();
+    const channel = supabase
+        .channel(`chat-page:${active}`)
+        .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "messages", filter: `channel_id=eq.${active}` },
+            async (payload) => {
+              const channelId = active; // capture before any await
+              const record = payload.new as Omit<DbMessage, "profiles">;
+              const displayName = await getDisplayName(record.user_id);
+              setMessages((prev) => ({
+                ...prev,
+                [channelId]: [...(prev[channelId] ?? []), {
+                  id: record.id,
+                  author: displayName,
+                  authorId: record.user_id,
+                  content: record.content,
+                  time: formatTime(record.created_at),
+                  reactions: [],
+                }],
+              }));
+            }
+        )
+        .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "messages", filter: `channel_id=eq.${active}` },
+            (payload) => {
+              const { id, content } = payload.new as { id: string; content: string };
+              setMessages((prev) => {
+                const list = prev[active] ?? [];
+                return { ...prev, [active]: list.map((m) => m.id === id ? { ...m, content } : m) };
+              });
+            }
+        )
+        .on(
+            "postgres_changes",
+            { event: "DELETE", schema: "public", table: "messages", filter: `channel_id=eq.${active}` },
+            (payload) => {
+              const id = (payload.old as { id: string }).id;
+              if (!id) return;
+              setMessages((prev) => {
+                const list = prev[active] ?? [];
+                return { ...prev, [active]: list.filter((m) => m.id !== id) };
+              });
+              setEditingId((prev) => (prev === id ? null : prev));
+            }
+        )
+        .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [active, token, getDisplayName]);
