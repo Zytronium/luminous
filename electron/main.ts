@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, Menu, Tray, nativeImage, Notification, ipcMa
 import { join } from "path";
 import { spawn, ChildProcess } from "child_process";
 import { getPort } from "get-port-please";
+import { lookup } from "dns";
 
 Menu.setApplicationMenu(null);
 
@@ -51,6 +52,14 @@ ipcMain.on("notification:send", (_, title: string, body: string, channelId: stri
   notification.show();
 });
 
+// Connectivity check: DNS lookup is lightweight and works without a full HTTP
+// round-trip. Resolves true if we can reach the internet, false otherwise.
+ipcMain.handle("net:isOnline", () =>
+  new Promise<boolean>((resolve) => {
+    lookup("supabase.com", (err) => resolve(!err));
+  })
+);
+
 async function startNextServer(): Promise<number> {
   const port = await getPort({ portRange: [30011, 50000] });
   const appDir = join(process.resourcesPath, "app");
@@ -65,8 +74,11 @@ async function startNextServer(): Promise<number> {
         ...process.env,
         PORT: String(port),
         NODE_ENV: "production",
-        HOSTNAME: "localhost",
+        HOSTNAME: "127.0.0.1",
         ELECTRON_RUN_AS_NODE: "1",
+        // Disable Next.js telemetry. without this, Next.js attempts outbound
+        // network requests on startup that cause a 30s timeout when offline.
+        NEXT_TELEMETRY_DISABLED: "1",
       },
       stdio: "pipe",
     });
@@ -87,7 +99,7 @@ async function startNextServer(): Promise<number> {
     // Poll until the server is accepting connections
     const interval = setInterval(async () => {
       try {
-        await fetch(`http://localhost:${port}`);
+        await fetch(`http://127.0.0.1:${port}`);
         clearTimeout(timeout);
         clearInterval(interval);
         resolve(port);

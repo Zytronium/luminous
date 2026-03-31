@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.send("notification:send", title, body, channelId, messageId),
   onNotificationClick: (callback: (channelId: string, messageId: string) => void) =>
       ipcRenderer.on("notification:clicked", (_, data) => callback(data.channelId, data.messageId)),
+  checkOnline: (): Promise<boolean> => ipcRenderer.invoke("net:isOnline"),
 });
