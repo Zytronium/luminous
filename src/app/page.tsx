@@ -1,9 +1,45 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
 import GhostButton from "@/components/Ghostbutton";
+import {useEffect, useState} from "react";
+import {useRouter} from "next/navigation";
+import {createSupabaseClient} from "@/lib/supabase/client";
 
 export default function Home() {
-  return (
+    const router = useRouter();
+    const [isChecking, setIsChecking] = useState(true);
+
+    useEffect(() => {
+        const supabase = createSupabaseClient();
+
+        const checkAuth = async () => {
+            const {data: {session}} = await supabase.auth.getSession();
+            if (session) {
+                router.push("/chat");
+            } else {
+                setIsChecking(false);
+            }
+        };
+
+        checkAuth();
+
+        const {data: {subscription}} = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session) {
+                router.push("/chat");
+            }
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, [router]);
+
+    if (isChecking) {
+        return null;
+    }
+    return (
     <>
       <style>{`
         @keyframes pulse-ring {
