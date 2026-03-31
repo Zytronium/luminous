@@ -33,6 +33,5 @@
 # Current Branch Todo List (notifications)
 
 - Add notification preferences in settings (global settings)
-- Create a sound effect to replace placeholder ping sound
 - Scroll to the message upon clicking on the notification
 - Make notification sounds in browser too if electron is not also open (not sure how to do this one but I have ideas)

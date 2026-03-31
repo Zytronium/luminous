@@ -265,8 +265,9 @@ function ChatPageInner() {
       config: { private: true },
     });
 
-    channel
-      .on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
+  channel
+    .on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
+    const channelId = active;
         const record = payload.record;
         const displayName = await getDisplayName(record.user_id);
         const msg: Message = {
@@ -276,10 +277,9 @@ function ChatPageInner() {
           content: record.content,
           time: formatTime(record.created_at),
         };
-
         setMessages((prev) => ({
           ...prev,
-          [active]: [...(prev[active] ?? []), msg],
+        [channelId]: [...(prev[channelId] ?? []), msg],
         }));
       })
       .on("broadcast", { event: "UPDATE" }, ({ payload }: UpdateBroadcastPayload) => {
