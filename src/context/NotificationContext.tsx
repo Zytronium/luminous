@@ -50,6 +50,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         return name;
     }, []);
 
+    const parse_msg = useCallback(async (text: string): Promise<string> => {
+        const matches = [...text.matchAll(/<@!([0-9a-f-]+)>/g)];
+        if (!matches.length)
+            return text;
+        await Promise.all(matches.map((m) => getDisplayName(m[1])));
+        return text.replace(/<@!([0-9a-f-]+)>/g, (_, userId) =>
+            `@${profileCache.current.get(userId) ?? "Unknown"}`
+        );
+    }, [getDisplayName]);
+
     useEffect(() => {
         audioRef.current = new Audio("/audio/ping.ogg");
         isElectronRef.current = !!window.electronAPI?.isElectron;
@@ -121,9 +131,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
                 const displayName = await getDisplayName(record.user_id);
                 const title = `${displayName} (#${ch.name})`;
+                const body = await parse_msg(record.content);
 
                 if (isElectronRef.current) {
-                    window.electronAPI?.notify(title, record.content, ch.id, record.id);
+                    window.electronAPI?.notify(title, body, ch.id, record.id);
                 }
 
                 audioRef.current?.play().catch(() => {});
@@ -134,7 +145,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         });
 
         return () => { subs.forEach((s) => supabase.removeChannel(s)); };
-    }, [channels, token, user?.id]);
+    }, [channels, token, user?.id, parse_msg]);
 
     return (
         <NotificationContext.Provider value={{ setActiveChannel }}>
