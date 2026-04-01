@@ -22,7 +22,7 @@ const NotificationContext = createContext<NotificationContextValue>({
 });
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-    const {token, user } = useAuth();
+    const { token, user, settings, loading } = useAuth();
     const [channels, setChannels] = useState<Channel[]>([]);
 
     const activeChannelRef = useRef<string | null>(null);
@@ -76,17 +76,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }, []);
 
     useEffect(() => {
-        if (!token)
-            return;
+        if (loading || !token) return;
+
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/channels`, {
             headers: { Authorization: `Bearer ${token}` },
         })
-            .then((r) => r.json())
-            .then((data: Channel[]) => setChannels(data));
-    }, [token]);
+            .then((r) => { if (!r.ok) return null; return r.json(); })
+            .then((data) => { if (Array.isArray(data)) setChannels(data); });
+    }, [token, loading]);
 
     useEffect(() => {
-        if (!token || channels.length == 0)
+        if (!token || !Array.isArray(channels) || channels.length === 0)
             return;
 
         const subs = channels.map((ch) => {
@@ -102,6 +102,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
                 // Skip if the user is looking at this channel with the window in focus
                 if (windowFocusedRef.current && activeChannelRef.current === ch.id)
+                    return;
+
+                // Skip depending on notification preferences and context of message
+
+                // Skip if user notification preference is "none"
+                if (settings.notification_preference === "none")
+                    return;
+
+                // Skip if user notification preference is "mention" // todo: implement mentions/pings, then only skip if this message does not mention the user
+                if (settings.notification_preference === "mentions")
                     return;
 
                 const displayName = await getDisplayName(record.user_id);
