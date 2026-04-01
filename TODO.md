@@ -32,6 +32,6 @@
 
 # Current Branch Todo List (notifications)
 
-- Add notification preferences in settings (global settings)
+- Implement user mentions and pings (@everyone, @role, @user)
 - Scroll to the message upon clicking on the notification
 - Only make notification sounds in browser if electron is not also open (not sure how to do this one but I have ideas)
