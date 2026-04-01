@@ -99,6 +99,16 @@ function ChatPageInner() {
   const [isMac, setIsMac] = useState(false);
   const [currentIcon, setCurrentIcon] = useState(DefaultIcon);
 
+
+  // For now, just parse text and replace `<@!user_id>` with `@Display Name`
+  // In the future, return HTMLElement and return the message as a styled div
+  // with styled mentions instead of plain text mentions
+  function parse_msg(text: string): string {
+    return text.replace(/<@!([0-9a-f-]+)>/g, (_, userId) => {
+      return `@${profileCache.current.get(userId) ?? "Unknown"}`;
+    });
+  }
+
   const handleMouseEnter = () => {
     const randomIcon = ReactIcons[Math.floor(Math.random() * ReactIcons.length)];
     setCurrentIcon(randomIcon);
@@ -248,22 +258,40 @@ function ChatPageInner() {
   useEffect(() => {
     if (!token || !active) return;
 
-    fetch(
+    const loadMessages = async () => {
+        const r = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`,
       { headers: { Authorization: `Bearer ${token}` } }
-    )
-      .then((r) => r.json())
-      .then((data: DbMessage[]) => {
+        );
+        const data: DbMessage[] = await r.json();
         if (!Array.isArray(data)) return;
-        const mapped: Message[] = data.map((m) => ({
+
+        const mapped: Message[] = await Promise.all(data.map(async (m) => ({
           id: m.id,
           author: m.profiles?.display_name ?? "Unknown",
           authorId: m.user_id,
           content: m.content,
           time: formatTime(m.created_at),
-        }));
+        })));
+
         setMessages((prev) => ({ ...prev, [active]: mapped }));
-      });
+
+        // Resolve any mentions not yet in the cache
+        const mentionIds = new Set<string>();
+        data.forEach((m) => {
+          for (const match of m.content.matchAll(/<@!([0-9a-f-]+)>/g)) {
+            if (!profileCache.current.has(match[1])) mentionIds.add(match[1]);
+          }
+        });
+
+        if (mentionIds.size > 0) {
+          await Promise.all([...mentionIds].map(getDisplayName));
+          // Re-render now that the cache is populated
+          setMessages((prev) => ({ ...prev }));
+        }
+    };
+
+    loadMessages();
 
     const channel = supabase
         .channel(`chat-page:${active}`)
@@ -541,7 +569,7 @@ function ChatPageInner() {
               ) : (
                 <>
                   <div className="text-sm text-darker-blue dark:text-offwhite wrap-break-words ml-10">
-                    {msg.content}
+                    {parse_msg(msg.content)}
                   </div>
                   <MessageReactions reactions={msg.reactions || []} />
                 </>
