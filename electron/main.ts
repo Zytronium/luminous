@@ -190,12 +190,6 @@ async function createWindow() {
     return { action: "deny" };
   });
 
-  mainWindow.webContents.on("before-input-event", (event, input) => {
-    if (input.control && input.shift && input.key.toLowerCase() === "i") {
-      mainWindow.webContents.toggleDevTools();
-    }
-  });
-
   // Intercept the close button: hide to tray instead of quitting,
   // unless we're doing a real quit (e.g. from the tray menu or app.quit() or if close to tray setting is off).
   mainWindow.on("close", (event) => {
