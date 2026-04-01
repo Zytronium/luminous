@@ -112,14 +112,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Restore session on mount + subscribe to auth state changes ────────────
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) {
+        // Force a refresh once on mount so the token is guaranteed fresh
+        const { data: refreshData } = await supabase.auth.refreshSession({ refresh_token: data.session.refresh_token });
+        const session = refreshData.session ?? data.session;
+
         const u: User = {
-          id:          data.session.user.id,
-          email:       data.session.user.email ?? "",
-          displayName: data.session.user.user_metadata?.display_name ?? "",
+          id:          session.user.id,
+          email:       session.user.email ?? "",
+          displayName: session.user.user_metadata?.display_name ?? "",
         };
-        setSession(data.session);
+        setSession(session);
         setUser(u);
         loadSettings(u.id);
       } else {

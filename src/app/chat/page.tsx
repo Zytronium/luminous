@@ -229,17 +229,21 @@ function ChatPageInner() {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (loading || !token) return;
+
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/channels`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
-      .then((data: Channel[]) => {
-        setChannels(data);
-        if (data.length > 0) setActive(data[0].id);
-      })
-      .finally(() => setLoadingChannels(false));
-  }, [token]);
+        .then((r) => { if (!r.ok) return null; return r.json(); })
+        .then((data) => { if (Array.isArray(data)) setChannels(data); })
+        .finally(() => setLoadingChannels(false));
+  }, [token, loading]);
+
+  useEffect(() => {
+    if (channels.length > 0 && !active) {
+      setActive(channels[0].id);
+    }
+  }, [channels]);
 
   useEffect(() => {
     if (!token || !active) return;
