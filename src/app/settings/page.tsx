@@ -236,10 +236,6 @@ export default function SettingsPage() {
                 {label}
               </button>
           ))}
-          {/* Render three buttons, one per option */}
-          {/* Use the same pill/toggle pattern as the Theme selector */}
-          {/* Highlight the active option when settings.notification_preference === value */}
-          {/* Call changeNotificationPreference(value) on click */}
           </div>
         </SettingRow>
       </Section>
