@@ -35,3 +35,17 @@
 - Implement user mentions and pings (@everyone, @role, @user)
 - Scroll to the message upon clicking on the notification
 - Only make notification sounds in browser if electron is not also open (not sure how to do this one but I have ideas)
+
+## Mentions Todo List
+
+- Parse message content on loading channel messages and receiving a new realtime message
+  - Look for pattern `<@!user_id>` and replace with a styled user mention.
+  - If the user ID is the current logged in user's ID, restyle the whole message to be highlighted.
+- Parse message content while typing and autocomplete user mentions
+  - Autocomplete should fuzzy search username and display name. 
+  - Press tab to select and autofill the first matching user.
+  - Press arrow keys to cycle through the matching users.
+  - Display a styled user mention in place of pattern `<@!user_id>` in the message input box.
+  - Backspace on this styled mention should remove the whole mention.
+- Add logic when sending notifications to check if the message mentions the current logged in user.
+- Parse message content in notifications and replace `<@!user_id>` with `@Display Name`.
