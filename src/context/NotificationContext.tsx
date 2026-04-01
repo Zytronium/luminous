@@ -29,9 +29,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const windowFocusedRef = useRef<boolean>(true);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const isElectronRef = useRef<boolean>(false);
+    const settingsRef = useRef(settings);
     const profileCache = useRef<Map<string, string>>(new Map());
     const router = useRouter();
-
 
     const setActiveChannel = useCallback((id: string | null) => {
         activeChannelRef.current = id;
@@ -55,6 +55,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         isElectronRef.current = !!window.electronAPI?.isElectron;
     }, []);
 
+
     // Register the click handler on mount
     useEffect(() => {
         if (!window.electronAPI?.isElectron) return;
@@ -62,6 +63,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             router.push(`/chat?channel=${channelId}&message=${messageId}`);
         });
     }, [router]);
+
+    useEffect(() => {
+        settingsRef.current = settings;
+    }, [settings]);
 
     useEffect(() => {
         const onFocus = () => { windowFocusedRef.current = true; };
@@ -107,11 +112,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 // Skip depending on notification preferences and context of message
 
                 // Skip if user notification preference is "none"
-                if (settings.notification_preference === "none")
+                if (settingsRef.current.notification_preference === "none")
                     return;
 
                 // Skip if user notification preference is "mention" // todo: implement mentions/pings, then only skip if this message does not mention the user
-                if (settings.notification_preference === "mentions")
+                if (settingsRef.current.notification_preference === "mentions")
                     return;
 
                 const displayName = await getDisplayName(record.user_id);
