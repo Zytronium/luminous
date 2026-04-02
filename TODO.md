@@ -7,9 +7,6 @@
 - Allow editing user profiles
 - Verify backup emails
 - Allow creating and deleting channels and categories
-- Finish integrating the database (server settings, users, channels, messages, group chats, etc.)
-- Implement more API endpoints
-- Add Markdown support for messages
 - Add file upload & embed support
 - Add link embeds in messages
 - Add direct messaging between other users
