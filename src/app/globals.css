@@ -85,6 +85,10 @@ a {
   @apply text-blue dark:text-neon-teal bg-muted-blue/25 dark:bg-teal/25;
 }
 
+.message-mentioned {
+  @apply bg-teal/5 dark:bg-teal/10 border-l-2 border-teal;
+}
+
 .highlight {
   animation: highlight-fade 2s ease-out;
 }

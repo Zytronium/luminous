@@ -125,8 +125,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 if (settingsRef.current.notification_preference === "none")
                     return;
 
-                // Skip if user notification preference is "mention" // todo: implement mentions/pings, then only skip if this message does not mention the user
-                if (settingsRef.current.notification_preference === "mentions")
+                // Skip if user notification preference is "mention" and message mentions this user
+                if (settingsRef.current.notification_preference === "mentions" && !record.content.includes(`<@!${user?.id}>`))
                     return;
 
                 const displayName = await getDisplayName(record.user_id);

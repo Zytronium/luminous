@@ -83,6 +83,11 @@ function formatTime(iso: string) {
   });
 }
 
+function isMentioned(content: string, userId?: string): boolean {
+  if (!userId) return false;
+  return content.includes(`<@!${userId}>`);
+}
+
 function ChatPageInner() {
   const { token, user, loading } = useAuth();
   const router = useRouter();
@@ -519,7 +524,12 @@ function ChatPageInner() {
             <p className="text-center text-darker-blue/75 dark:text-offwhite/75 text-sm mt-4">Channel empty.</p>
           )}
           {msgs.map((msg) => (
-            <div key={msg.id} id={`message-${msg.id}`} className="group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-darker-blue/5 dark:hover:bg-white/5 transition-colors">
+            <div
+                key={msg.id}
+                id={`message-${msg.id}`}
+                className={`group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-darker-blue/5 dark:hover:bg-white/5 transition-colors  ${
+                  isMentioned(msg.content, user?.id) ? "bg-teal/25 dark:bg-teal/15 border-l-2 border-teal" : ""
+                }`}>
               {editingId !== msg.id && (
                 <div className="absolute right-4 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                   <MessageHover
