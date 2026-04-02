@@ -100,12 +100,12 @@ function ChatPageInner() {
   const [currentIcon, setCurrentIcon] = useState(DefaultIcon);
 
 
-  // For now, just parse text and replace `<@!user_id>` with `@Display Name`
-  // In the future, return HTMLElement and return the message as a styled div
-  // with styled mentions instead of plain text mentions
-  function parse_msg(text: string): string {
+  // Find `<@!user_id>` and replace all instances of it with a styled user mention box of `@Display Name`
+  function parse_msg(text: string, currentUserId?: string): string {
     return text.replace(/<@!([0-9a-f-]+)>/g, (_, userId) => {
-      return `@${profileCache.current.get(userId) ?? "Unknown"}`;
+      const name = profileCache.current.get(userId) ?? "Unknown";
+      const isSelf = userId === currentUserId;
+      return `<span class="mention${isSelf ? " mention-self" : ""}">@${name}</span>`;
     });
   }
 
@@ -568,9 +568,10 @@ function ChatPageInner() {
                 </div>
               ) : (
                 <>
-                  <div className="text-sm text-darker-blue dark:text-offwhite wrap-break-words ml-10">
-                    {parse_msg(msg.content)}
-                  </div>
+                  <div
+                      className="text-sm text-darker-blue dark:text-offwhite wrap-break-words ml-10"
+                      dangerouslySetInnerHTML={{ __html: parse_msg(msg.content, user?.id) }}
+                  />
                   <MessageReactions reactions={msg.reactions || []} />
                 </>
               )}

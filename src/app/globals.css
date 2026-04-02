@@ -39,8 +39,8 @@
   --color-dark-blue:    #00003c;
   --color-darker-blue:  #00002e;
   --color-darkest-blue: #000028;
-  --muted-blue:         #404858;
-  --light-muted-blue:   #60697d;
+  --color-muted-blue:         #404858;
+  --color-light-muted-blue:   #60697d;
   --color-red:          #d00414;
   --color-dark-red:     #9e0512;
   --color-beige:        #f7f0dc;
@@ -75,6 +75,14 @@ a {
 
 .btn-tertiary {
   @apply bg-red text-offwhite
+}
+
+.mention {
+  @apply text-blue dark:text-teal bg-muted-blue/15 dark:bg-teal/15 rounded px-1 py-0.5 font-semibold;
+}
+
+.mention.mention-self {
+  @apply text-blue dark:text-neon-teal bg-muted-blue/25 dark:bg-teal/25;
 }
 
 .highlight {
