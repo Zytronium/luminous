@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, Suspense, lazy } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, Suspense, lazy } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { SendHorizonal, Menu, Hash, Minus, Square, X, Check, Ban } from "lucide-react";
@@ -14,6 +14,9 @@ import { EmojiClickData, Theme } from 'emoji-picker-react';
 
 // Lazy load the picker to match your MessageHover pattern
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
+
+const INITIAL_MSG_COUNT = 50;
+const MSGS_TO_LOAD = 25;
 
 const DefaultIcon = "/face-grin.png";
 const ReactIcons = [
@@ -117,8 +120,8 @@ function ChatPageInner() {
   const [isElectron, setIsElectron] = useState(false);
   const [isMac, setIsMac] = useState(false);
   const [currentIcon, setCurrentIcon] = useState(DefaultIcon);
-
-
+  const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({});
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Find `<@!user_id>` or `@everyone` and replace all instances of it with a styled user mention box of `@Display Name` or `@everyone`
   function parse_msg(text: string, currentUserId?: string): string {
@@ -156,6 +159,13 @@ function ChatPageInner() {
   const activeRef = useRef<string>("");
   const pendingScrollRef = useRef<string | null>(null);
   const mentionMap = useRef<Map<string, string>>(new Map()); // "@Display Name" -> "<@!uuid>"
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const isPrependingRef = useRef(false);
+  const justPrependedRef = useRef(false);
+  const prevActiveRef = useRef<string>("");
+  const scrollHeightBeforeRef = useRef(0);
+  const scrollTopBeforeRef = useRef(0);
 
   const handleReact = async (messageId: string, emoji: string) => {
     if (!token) return;
@@ -190,20 +200,39 @@ function ChatPageInner() {
 
   useEffect(() => {
     const messageId = searchParams.get("message");
-    if (!messageId)
-      bottomRef.current?.scrollIntoView({ behavior: "instant" });
+    const isChannelSwitch = prevActiveRef.current !== active;
+    prevActiveRef.current = active;
 
-    // If we have a pending scroll target and the messages for this
-    // channel have just loaded, scroll to it now
+    // Never interfere when we just prepended older messages. The
+    // useLayoutEffect above already restored the exact scroll position.
+    if (justPrependedRef.current) {
+      justPrependedRef.current = false;
+      return;
+    }
+
     if (pendingScrollRef.current && (messages[active]?.length ?? 0) > 0) {
-      const messageId = pendingScrollRef.current;
+      const targetId = pendingScrollRef.current;
       pendingScrollRef.current = null;
       setTimeout(() => {
-        const el = document.getElementById(`message-${messageId}`);
+        const el = document.getElementById(`message-${targetId}`);
         el?.scrollIntoView({ behavior: "smooth", block: "center" });
         el?.classList.add("highlight");
       }, 50); // just enough time for the DOM to paint
+      return;
     }
+
+    if (messageId)
+        return;
+
+    // On a channel switch always go to the bottom.
+    // For realtime updates only scroll if the user is already near the bottom
+    // so reading history isn't interrupted.
+    const container = scrollContainerRef.current;
+    const isNearBottom = !container ||
+      container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+
+    if (isChannelSwitch || isNearBottom)
+      bottomRef.current?.scrollIntoView({ behavior: "instant" });
   }, [messages, active]);
 
   useEffect(() => {
@@ -290,7 +319,7 @@ function ChatPageInner() {
 
     const loadMessages = async () => {
         const r = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages?count=${INITIAL_MSG_COUNT}`,
       { headers: { Authorization: `Bearer ${token}` } }
         );
         const data: DbMessage[] = await r.json();
@@ -305,6 +334,7 @@ function ChatPageInner() {
         })));
 
         setMessages((prev) => ({ ...prev, [active]: mapped }));
+        setHasMoreMessages((prev) => ({ ...prev, [active]: data.length >= INITIAL_MSG_COUNT }));
 
         // Resolve any mentions not yet in the cache
         const mentionIds = new Set<string>();
@@ -383,6 +413,79 @@ function ChatPageInner() {
 
     return () => { supabase.removeChannel(channel); };
   }, [active, token, getDisplayName]);
+
+  const loadMoreMessages = useCallback(async () => {
+    if (!token || !active || loadingMore || hasMoreMessages[active] === false) return;
+    const oldest = messages[active]?.[0]?.id;
+    if (!oldest) return;
+
+    const container = scrollContainerRef.current;
+    if (container) {
+      scrollHeightBeforeRef.current = container.scrollHeight;
+      scrollTopBeforeRef.current = container.scrollTop;
+      isPrependingRef.current = true;
+    }
+
+    setLoadingMore(true);
+    const r = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages?before=${oldest}&count=${MSGS_TO_LOAD}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const data: DbMessage[] = await r.json();
+
+    if (!Array.isArray(data) || data.length === 0) {
+      setHasMoreMessages((prev) => ({ ...prev, [active]: false }));
+      setLoadingMore(false);
+      isPrependingRef.current = false;
+      return;
+    }
+
+    const mapped: Message[] = data.map((m) => ({
+      id: m.id,
+      author: m.profiles?.display_name ?? "Unknown",
+      authorId: m.user_id,
+      content: m.content,
+      time: formatTime(m.created_at),
+    }));
+
+    justPrependedRef.current = true;
+    setMessages((prev) => ({
+      ...prev,
+      [active]: [...mapped, ...(prev[active] ?? [])],
+    }));
+
+    if (data.length < MSGS_TO_LOAD)
+      setHasMoreMessages((prev) => ({ ...prev, [active]: false }));
+
+    setLoadingMore(false);
+  }, [token, active, loadingMore, hasMoreMessages, messages]);
+
+  // Restore scroll position after prepending older messages so the view doesn't jump
+  useLayoutEffect(() => {
+    if (!isPrependingRef.current) return;
+    isPrependingRef.current = false;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const diff = container.scrollHeight - scrollHeightBeforeRef.current;
+    container.scrollTop = scrollTopBeforeRef.current + diff;
+  }, [messages]);
+
+  // IntersectionObserver: trigger load when the top sentinel becomes visible
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    const container = scrollContainerRef.current;
+    if (!sentinel || !container) return;
+    if (hasMoreMessages[active] === false) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMoreMessages();
+      },
+      { root: container, threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [active, loadMoreMessages, hasMoreMessages]);
 
   async function send() {
     const text = input.trim();
@@ -642,7 +745,19 @@ function ChatPageInner() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 w-full overflow-y-auto min-h-0 bg-beige dark:bg-darkest-blue">
+        <div ref={scrollContainerRef} className="flex-1 w-full overflow-y-auto min-h-0 bg-beige dark:bg-darkest-blue">
+          {/* Top sentinel — triggers loading older messages when scrolled into view */}
+          <div ref={topSentinelRef} className="h-px w-full" />
+          {loadingMore && (
+            <div className="flex justify-center py-2">
+              <span className="text-teal/50 text-xs animate-pulse">Loading older messages...</span>
+            </div>
+          )}
+          {hasMoreMessages[active] === false && msgs.length > 0 && (
+            <p className="text-center text-darker-blue/30 dark:text-offwhite/30 text-xs py-2">
+              Beginning of channel history
+            </p>
+          )}
           {msgs.length === 0 && !loadingChannels && (
             <p className="text-center text-darker-blue/75 dark:text-offwhite/75 text-sm mt-4">Channel empty.</p>
           )}
