@@ -88,6 +88,16 @@ function isMentioned(content: string, userId?: string): boolean {
   return content.includes(`<@!${userId}>`);
 }
 
+function fuzzyMatch(query: string, target: string): boolean {
+  const q = query.toLowerCase();
+  const t = target.toLowerCase();
+  let qi = 0;
+  for (let i = 0; i < t.length && qi < q.length; i++) {
+    if (t[i] === q[qi]) qi++;
+  }
+  return qi === q.length;
+}
+
 function ChatPageInner() {
   const { token, user, loading } = useAuth();
   const router = useRouter();
@@ -100,9 +110,14 @@ function ChatPageInner() {
   const [input, setInput] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profiles, setProfiles] = useState<{ id: string; display_name: string }[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionResults, setMentionResults] = useState<{ id: string; display_name: string }[]>([]);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [isElectron, setIsElectron] = useState(false);
   const [isMac, setIsMac] = useState(false);
   const [currentIcon, setCurrentIcon] = useState(DefaultIcon);
+
 
 
   // Find `<@!user_id>` and replace all instances of it with a styled user mention box of `@Display Name`
@@ -138,6 +153,7 @@ function ChatPageInner() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const activeRef = useRef<string>("");
   const pendingScrollRef = useRef<string | null>(null);
+  const mentionMap = useRef<Map<string, string>>(new Map()); // "@Display Name" -> "<@!uuid>"
 
   const handleReact = async (messageId: string, emoji: string) => {
     if (!token) return;
@@ -255,6 +271,13 @@ function ChatPageInner() {
   }, [token, loading]);
 
   useEffect(() => {
+    if (!token) return;
+    supabase.from("profiles").select("id, display_name").then(({ data }) => {
+      if (data) setProfiles(data);
+    });
+  }, [token]);
+
+  useEffect(() => {
     if (channels.length > 0 && !active) {
       setActive(channels[0].id);
     }
@@ -351,20 +374,99 @@ function ChatPageInner() {
 
   async function send() {
     const text = input.trim();
-    if (!text || !token) return;
+    if (!text || !token)
+      return;
+
+    // Convert @Display Name back to <@!uuid>
+    let rawText = text;
+    mentionMap.current.forEach((raw, display) => {
+      rawText = rawText.replaceAll(display, raw);
+    });
+
     setInput("");
+    mentionMap.current.clear();
     inputRef.current?.focus();
+
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/message/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ channelId: active, content: text }),
+      body: JSON.stringify({ channelId: active, content: rawText }),
     });
   }
 
+  function insertMention(profile: { id: string; display_name: string }) {
+    const cursor = inputRef.current?.selectionStart ?? input.length;
+    const textBeforeCursor = input.slice(0, cursor);
+    const textAfterCursor = input.slice(cursor);
+    const displayText = `@${profile.display_name}`;
+    const replaced = textBeforeCursor.replace(/@([^\s@]*)$/, `${displayText} `);
+    mentionMap.current.set(displayText, `<@!${profile.id}>`);
+    setInput(replaced + textAfterCursor);
+    setMentionQuery(null);
+    setMentionResults([]);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
   function handleKey(e: React.KeyboardEvent) {
+    if (mentionResults.length > 0) {
+      if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        insertMention(mentionResults[mentionIndex]);
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % mentionResults.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + mentionResults.length) % mentionResults.length);
+        return;
+      }
+      if (e.key === "Escape") {
+        setMentionQuery(null);
+        setMentionResults([]);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
+    }
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    let val = e.target.value;
+
+    // Convert any manually typed <@!uuid> to @Display Name
+    val = val.replace(/<@!([0-9a-f-]+)>/g, (full, userId) => {
+        const profile = profiles.find((p) => p.id === userId);
+        if (!profile)
+            return full; // leave as-is if not found
+        const displayText = `@${profile.display_name}`;
+        mentionMap.current.set(displayText, full);
+        return displayText;
+    });
+
+    setInput(val);
+
+    // Detect @mention autocomplete
+    const cursor = e.target.selectionStart ?? val.length;
+    const textBeforeCursor = val.slice(0, cursor);
+    const match = textBeforeCursor.match(/@([^\s@]*)$/);
+
+    if (match) {
+      const query = match[1];
+      setMentionQuery(query);
+      const results = profiles.filter(
+          (p) => fuzzyMatch(query, p.display_name)
+      ).slice(0, 5);
+      setMentionResults(results);
+      setMentionIndex(0);
+    } else {
+      setMentionQuery(null);
+      setMentionResults([]);
     }
   }
 
@@ -619,10 +721,28 @@ function ChatPageInner() {
 
           <div className="flex flex-row items-center gap-2 w-full">
             <div className="relative flex-1 flex items-center">
+              {mentionResults.length > 0 && (
+                  <div className="absolute bottom-full left-0 mb-2 w-64 rounded-2xl border-2 border-teal/20 bg-beige dark:bg-dark-blue shadow-xl overflow-hidden z-50">
+                    {mentionResults.map((p, i) => (
+                        <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); insertMention(p); }}
+                            className={`w-full text-left px-4 py-2.5 text-sm font-semibold transition-colors ${
+                                i === mentionIndex
+                                    ? "bg-teal/20 text-teal"
+                                    : "text-darker-blue dark:text-offwhite hover:bg-teal/10"
+                            }`}
+                        >
+                          @{p.display_name}
+                        </button>
+                    ))}
+                  </div>
+              )}
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKey}
                 placeholder={activeChannel ? `Message #${activeChannel.name}` : ""}
                 disabled={!activeChannel}
