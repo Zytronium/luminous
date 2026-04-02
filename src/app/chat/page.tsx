@@ -343,6 +343,16 @@ function ChatPageInner() {
                   reactions: [],
                 }],
               }));
+
+              // Resolve any mention IDs not yet in the cache
+              const mentionIds = [...record.content.matchAll(/<@!([0-9a-f-]+)>/g)]
+                  .map((m) => m[1])
+                  .filter((id) => !profileCache.current.has(id));
+
+              if (mentionIds.length > 0) {
+                  await Promise.all(mentionIds.map(getDisplayName));
+                  setMessages((prev) => ({ ...prev }));
+              }
             }
         )
         .on(
