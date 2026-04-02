@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, Suspense, lazy } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, Suspense, lazy, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { SendHorizonal, Menu, Hash, Minus, Square, X, Check, Ban } from "lucide-react";
@@ -11,6 +11,8 @@ import MessageHover from "@/components/MessageHover";
 import MessageReactions from "@/components/MessageReactions";
 import Image from "next/image";
 import { EmojiClickData, Theme } from 'emoji-picker-react';
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 // Lazy load the picker to match your MessageHover pattern
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -111,6 +113,7 @@ function ChatPageInner() {
   const [active, setActive] = useState<string>("");
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [input, setInput] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profiles, setProfiles] = useState<{ id: string; display_name: string }[]>([]);
@@ -125,13 +128,26 @@ function ChatPageInner() {
 
   // Find `<@!user_id>` or `@everyone` and replace all instances of it with a styled user mention box of `@Display Name` or `@everyone`
   function parse_msg(text: string, currentUserId?: string): string {
-    return text
-        .replace(/@everyone/g, `<span class="mention mention-self">@everyone</span>`)
+  // 1. Replace mentions with placeholders so marked doesn't escape the < > characters
+  const mentionSpans: string[] = [];
+  const protected_text = text
+    .replace(/@everyone/g, () => {
+      mentionSpans.push(`<span class="mention mention-self">@everyone</span>`);
+      return `%%MENTION_${mentionSpans.length - 1}%%`;
+    })
         .replace(/<@!([0-9a-f-]+)>/g, (_, userId) => {
           const name = profileCache.current.get(userId) ?? "Unknown";
           const isSelf = userId === currentUserId;
-          return `<span class="mention${isSelf ? " mention-self" : ""}">@${name}</span>`;
+      mentionSpans.push(`<span class="mention${isSelf ? " mention-self" : ""}">@${name}</span>`);
+      return `%%MENTION_${mentionSpans.length - 1}%%`;
         });
+
+  // 2. Run markdown (mentions are now plain tokens, safe from escaping)
+  const rawHtml = marked.parse(protected_text, { breaks: true, gfm: true }) as string;
+  const cleanHtml = typeof window !== "undefined" ? DOMPurify.sanitize(rawHtml) : rawHtml;
+
+  // 3. Restore mention spans
+  return cleanHtml.replace(/%%MENTION_(\d+)%%/g, (_, i) => mentionSpans[parseInt(i)]);
   }
 
   const handleMouseEnter = () => {
@@ -682,6 +698,11 @@ function ChatPageInner() {
   }
 
   const activeChannel = channels.find((c) => c.id === active);
+
+  const markdownPreview = useMemo(() => {
+    if (!input.trim()) return "";
+    return parse_msg(input, user?.id);
+  }, [input, user?.id, profiles]);
   const msgs = messages[active] ?? [];
 
   if (loading)
@@ -803,8 +824,16 @@ function ChatPageInner() {
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     onKeyDown={handleEditKey}
-                    className="w-full bg-beige dark:bg-dark-blue border border-teal/40 text-darker-blue dark:text-offwhite text-sm rounded-lg px-3 py-2 outline-none resize-none"
+                    className="w-full bg-beige dark:bg-dark-blue border border-teal/40 text-darker-blue dark:text-offwhite text-sm rounded-lg px-3 py-2 outline-none resize-none message-content"
                   />
+                  {editContent.trim() && (
+                      <div className="p-2 border border-teal/20 rounded bg-beige/30 dark:bg-dark-blue/30 mt-1 max-h-24 overflow-y-auto">
+                        <div
+                            className="text-darker-blue/70 dark:text-offwhite/70 message-content"
+                            dangerouslySetInnerHTML={{ __html: parse_msg(editContent, user?.id) }}
+                        />
+                      </div>
+                  )}
                   <div className="flex items-center gap-2 text-xs text-darker-blue/50 dark:text-beige/50">
                     <button onClick={saveEdit} className="flex items-center gap-1 px-2.5 py-1 rounded bg-teal/15 text-teal hover:bg-teal/25">
                       <Check size={12} />Save
@@ -817,7 +846,7 @@ function ChatPageInner() {
               ) : (
                 <>
                   <div
-                      className="text-sm text-darker-blue dark:text-offwhite wrap-break-words ml-10"
+                      className="text-darker-blue dark:text-offwhite wrap-break-words ml-10 message-content"
                       dangerouslySetInnerHTML={{ __html: parse_msg(msg.content, user?.id) }}
                   />
                   <MessageReactions reactions={msg.reactions || []} />
@@ -853,6 +882,31 @@ function ChatPageInner() {
                 </Suspense>
               </div>
             </div>
+          )}
+
+          <div className="flex flex-row items-center justify-between mb-1 px-2">
+            <span className="text-[10px] uppercase font-bold text-darker-blue/40 dark:text-beige/40 tracking-wider">
+              {showPreview ? "Previewing Markdown" : ""}
+            </span>
+            <button
+                onClick={() => setShowPreview(!showPreview)}
+                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-colors ${
+                    showPreview
+                        ? "bg-teal text-darker-blue"
+                        : "text-teal hover:bg-teal/10"
+                }`}
+            >
+              {showPreview ? "Hide Preview" : "Preview"}
+            </button>
+          </div>
+
+          {showPreview && input.trim() && (
+              <div className="mb-2 p-3 rounded-xl border-2 border-teal/20 bg-beige/50 dark:bg-dark-blue/50 max-h-32 overflow-y-auto">
+                <div
+                    className="text-darker-blue dark:text-offwhite message-content"
+                    dangerouslySetInnerHTML={{ __html: markdownPreview }}
+                />
+              </div>
           )}
 
           <div className="flex flex-row items-center gap-2 w-full">
