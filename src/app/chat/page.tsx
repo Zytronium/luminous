@@ -217,7 +217,34 @@ function ChatPageInner() {
   const scrollTopBeforeRef = useRef(0);
 
   const handleReact = async (messageId: string, emoji: string) => {
-    if (!token) return;
+  if (!token || !user) return;
+
+  const msg = (messages[active] ?? []).find((m) => m.id === messageId);
+  const alreadyReacted = msg?.reactions?.find((r) => r.emoji === emoji)?.users.includes(user.id) ?? false;
+
+  // Optimistic update
+  setMessages((prev) => {
+    const list = prev[activeRef.current] ?? [];
+    return {
+      ...prev,
+      [activeRef.current]: list.map((m) => {
+        if (m.id !== messageId) return m;
+        const reactions = [...(m.reactions ?? [])];
+        const idx = reactions.findIndex((r) => r.emoji === emoji);
+        if (alreadyReacted) {
+          if (idx >= 0) {
+            const updated = { ...reactions[idx], count: reactions[idx].count - 1, users: reactions[idx].users.filter((u) => u !== user.id) };
+            updated.count <= 0 ? reactions.splice(idx, 1) : (reactions[idx] = updated);
+          }
+        } else {
+          idx >= 0
+            ? (reactions[idx] = { ...reactions[idx], count: reactions[idx].count + 1, users: [...reactions[idx].users, user.id] })
+            : reactions.push({ emoji, count: 1, users: [user.id] });
+        }
+        return { ...m, reactions };
+      }),
+    };
+  });
 
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/messages/react`, {
       method: "POST",
@@ -384,6 +411,38 @@ function ChatPageInner() {
         })));
 
         setMessages((prev) => ({ ...prev, [active]: mapped }));
+
+      const messageIds = data.map((m) => m.id);
+      if (messageIds.length > 0) {
+        const { data: reactionRows } = await supabase
+            .from("message_reactions")
+            .select("message_id, user_id, emoji")
+            .in("message_id", messageIds);
+
+        if (reactionRows) {
+          // Group by message_id then emoji
+          const reactionMap = new Map<string, Reaction[]>();
+          for (const row of reactionRows) {
+            const list = reactionMap.get(row.message_id) ?? [];
+            const idx = list.findIndex((r) => r.emoji === row.emoji);
+            if (idx >= 0) {
+              list[idx].count++;
+              list[idx].users.push(row.user_id);
+            } else {
+              list.push({ emoji: row.emoji, count: 1, users: [row.user_id] });
+            }
+            reactionMap.set(row.message_id, list);
+          }
+          setMessages((prev) => ({
+            ...prev,
+            [active]: (prev[active] ?? []).map((m) => ({
+              ...m,
+              reactions: reactionMap.get(m.id) ?? [],
+            })),
+          }));
+        }
+      }
+
         setHasMoreMessages((prev) => ({ ...prev, [active]: data.length >= INITIAL_MSG_COUNT }));
 
         // Resolve any mentions not yet in the cache
@@ -458,6 +517,61 @@ function ChatPageInner() {
                 return { ...prev, [active]: list.filter((m) => m.id !== id) };
               });
               setEditingId((prev) => (prev === id ? null : prev));
+            }
+        )
+        .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "message_reactions" },
+            (payload) => {
+              const { message_id, user_id, emoji } = payload.new as {
+                message_id: string; user_id: string; emoji: string;
+              };
+              setMessages((prev) => {
+                const list = prev[activeRef.current] ?? [];
+                if (!list.some((m) => m.id === message_id)) return prev;
+                return {
+                  ...prev,
+                  [activeRef.current]: list.map((m) => {
+                    if (m.id !== message_id) return m;
+                    const reactions = [...(m.reactions ?? [])];
+                    const idx = reactions.findIndex((r) => r.emoji === emoji);
+                    if (idx >= 0) {
+                      const r = reactions[idx];
+                      reactions[idx] = { ...r, count: r.count + 1, users: [...r.users, user_id] };
+                    } else {
+                      reactions.push({ emoji, count: 1, users: [user_id] });
+                    }
+                    return { ...m, reactions };
+                  }),
+                };
+              });
+            }
+        )
+        .on(
+            "postgres_changes",
+            { event: "DELETE", schema: "public", table: "message_reactions" },
+            (payload) => {
+              // old is available since (message_id, user_id, emoji) is the PK
+              const { message_id, user_id, emoji } = payload.old as {
+                message_id: string; user_id: string; emoji: string;
+              };
+              setMessages((prev) => {
+                const list = prev[activeRef.current] ?? [];
+                if (!list.some((m) => m.id === message_id)) return prev;
+                return {
+                  ...prev,
+                  [activeRef.current]: list.map((m) => {
+                    if (m.id !== message_id) return m;
+                    const reactions = (m.reactions ?? [])
+                        .map((r) => r.emoji === emoji
+                            ? { ...r, count: r.count - 1, users: r.users.filter((u) => u !== user_id) }
+                            : r
+                        )
+                        .filter((r) => r.count > 0);
+                    return { ...m, reactions };
+                  }),
+                };
+              });
             }
         )
         .subscribe();
@@ -904,7 +1018,11 @@ function ChatPageInner() {
                       className="text-darker-blue dark:text-offwhite wrap-break-words ml-10 message-content"
                       dangerouslySetInnerHTML={{ __html: parse_msg(msg.content, user?.id) }}
                   />
-                  <MessageReactions reactions={msg.reactions || []} />
+                  <MessageReactions
+                      reactions={msg.reactions || []}
+                      userId={user?.id ?? ""}
+                      onReact={(emoji) => handleReact(msg.id, emoji)}
+                  />
                 </>
               )}
             </div>
