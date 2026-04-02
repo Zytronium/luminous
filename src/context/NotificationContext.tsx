@@ -51,13 +51,30 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }, []);
 
     const parse_msg = useCallback(async (text: string): Promise<string> => {
+        // Strip markdown by parsing to HTML and then extracting text
+        // Or better, just strip potential markdown characters for simple plain text
+        // Let's use marked to get HTML and then strip tags for a more robust "plain text"
         const matches = [...text.matchAll(/<@!([0-9a-f-]+)>/g)];
-        if (!matches.length)
-            return text;
-        await Promise.all(matches.map((m) => getDisplayName(m[1])));
-        return text.replace(/<@!([0-9a-f-]+)>/g, (_, userId) =>
+        if (matches.length) {
+            await Promise.all(matches.map((m) => getDisplayName(m[1])));
+        }
+
+        const mentionReplaced = text.replace(/<@!([0-9a-f-]+)>/g, (_, userId) =>
             `@${profileCache.current.get(userId) ?? "Unknown"}`
         );
+
+        // Simple markdown to plain text conversion:
+        // 1. Remove bold, italic, strikethrough
+        // 2. Remove code blocks
+        // 3. Remove links but keep text
+        let plainText = mentionReplaced
+            .replace(/(\*\*|__)(.*?)\1/g, '$2')
+            .replace(/(\*|_)(.*?)\1/g, '$2')
+            .replace(/~~(.*?)~~/g, '$1')
+            .replace(/`{1,3}(.*?)`{1,3}/g, '$1')
+            .replace(/\[(.*?)\]\(.*?\)/g, '$1');
+
+        return plainText;
     }, [getDisplayName]);
 
     useEffect(() => {

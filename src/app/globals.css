@@ -78,11 +78,87 @@ a {
 }
 
 .mention {
-  @apply text-blue dark:text-teal bg-muted-blue/15 dark:bg-teal/15 rounded px-1 py-0.5 font-semibold;
+  @apply text-blue dark:text-teal bg-muted-blue/15 dark:bg-teal/15 rounded px-1 py-0.5 font-semibold inline-block;
 }
 
 .mention.mention-self {
   @apply text-blue dark:text-neon-teal bg-muted-blue/25 dark:bg-teal/25;
+}
+
+.message-content p {
+  @apply mb-1 last:mb-0;
+}
+
+.message-content h1 {
+  @apply text-3xl font-bold mt-4 mb-2 first:mt-0;
+}
+
+.message-content h2 {
+  @apply text-2xl font-bold mt-3 mb-2 first:mt-0;
+}
+
+.message-content h3 {
+  @apply text-xl font-bold mt-3 mb-1 first:mt-0;
+}
+
+.message-content h4 {
+  @apply text-lg font-bold mt-2 mb-1 first:mt-0;
+}
+
+.message-content h5 {
+  @apply text-base font-bold mt-2 mb-1 first:mt-0;
+}
+
+.message-content h6 {
+  @apply text-sm font-bold mt-2 mb-1 first:mt-0;
+}
+
+.message-content strong {
+  @apply font-bold;
+}
+
+.message-content em {
+  @apply italic;
+}
+
+.message-content hr {
+  @apply border-t border-muted-blue/30 dark:border-light-muted-blue/30 my-2;
+}
+
+.message-content code {
+  @apply bg-black/10 dark:bg-white/10 rounded px-1 py-0.5 font-mono text-sm;
+}
+
+.message-content pre {
+  @apply bg-black/10 dark:bg-white/10 rounded p-2 my-2 overflow-x-auto;
+}
+
+.message-content pre code {
+  @apply bg-transparent p-0;
+}
+
+.message-content blockquote {
+  @apply border-l-4 border-teal/50 pl-4 py-1 my-1 italic;
+}
+
+.message-content ul, .message-content ol {
+  @apply pl-6 my-1;
+}
+
+.message-content ul {
+  @apply list-disc;
+}
+
+.message-content ol {
+  @apply list-decimal;
+}
+
+.message-content a {
+  @apply text-teal hover:underline;
+}
+
+.message-content {
+  @apply text-sm;
 }
 
 .message-mentioned {
