@@ -57,6 +57,7 @@ type Message = {
   authorId: string;
   content: string;
   time: string;
+  createdAt: string;
   reactions?: Reaction[];
 };
 
@@ -81,11 +82,43 @@ type DeleteBroadcastPayload = {
 
 const supabase = createSupabaseClient();
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatTimestamp(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  const timeStr = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  if (msgDay.getTime() === yesterday.getTime()) {
+    return `Yesterday at ${timeStr}`;
+  }
+  if (msgDay.getTime() === today.getTime()) {
+    return `Today at ${timeStr}`;
+  }
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const y = String(date.getFullYear()).slice(-2);
+  return `${m}/${d}/${y} at ${timeStr}`;
+}
+
+function getLocalDateKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function formatDateSeparator(key: string): string {
+  const [year, month, day] = key.split("-").map(Number);
+  const date = new Date(year, month, day);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.getTime() === today.getTime()) return "Today";
+  if (date.getTime() === yesterday.getTime()) return "Yesterday";
+  return date.toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" });
 }
 
 // TODO: ensure user sending the message has permission to ping @everyone, else ignore the @everyone
@@ -346,7 +379,8 @@ function ChatPageInner() {
           author: m.profiles?.display_name ?? "Unknown",
           authorId: m.user_id,
           content: m.content,
-          time: formatTime(m.created_at),
+          time: formatTimestamp(m.created_at),
+          createdAt: m.created_at,
         })));
 
         setMessages((prev) => ({ ...prev, [active]: mapped }));
@@ -385,7 +419,8 @@ function ChatPageInner() {
                   author: displayName,
                   authorId: record.user_id,
                   content: record.content,
-                  time: formatTime(record.created_at),
+                  time: formatTimestamp(record.created_at),
+                  createdAt: record.created_at,
                   reactions: [],
                 }],
               }));
@@ -461,7 +496,8 @@ function ChatPageInner() {
       author: m.profiles?.display_name ?? "Unknown",
       authorId: m.user_id,
       content: m.content,
-      time: formatTime(m.created_at),
+      time: formatTimestamp(m.created_at),
+      createdAt: m.created_at,
     }));
 
     justPrependedRef.current = true;
@@ -651,7 +687,8 @@ function ChatPageInner() {
               author: m.profiles?.display_name ?? "Unknown",
               authorId: m.user_id,
               content: m.content,
-              time: formatTime(m.created_at),
+              time: formatTimestamp(m.created_at),
+              createdAt: m.created_at,
             })),
           }));
         });
@@ -690,7 +727,8 @@ function ChatPageInner() {
               author: m.profiles?.display_name ?? "Unknown",
               authorId: m.user_id,
               content: m.content,
-              time: formatTime(m.created_at),
+              time: formatTimestamp(m.created_at),
+              createdAt: m.created_at,
             })),
           }));
         });
@@ -782,7 +820,24 @@ function ChatPageInner() {
           {msgs.length === 0 && !loadingChannels && (
             <p className="text-center text-darker-blue/75 dark:text-offwhite/75 text-sm mt-4">Channel empty.</p>
           )}
-          {msgs.map((msg) => (
+          {(() => {
+            const items: React.ReactNode[] = [];
+            let lastDateKey = "";
+            msgs.forEach((msg) => {
+              const dateKey = getLocalDateKey(msg.createdAt);
+              if (dateKey !== lastDateKey) {
+                lastDateKey = dateKey;
+                items.push(
+                  <div key={`sep-${dateKey}`} className="flex items-center gap-3 px-4 py-2 select-none">
+                    <div className="flex-1 h-px bg-darker-blue/20 dark:bg-beige/20" />
+                    <span className="text-xs font-semibold text-darker-blue/40 dark:text-beige/40 shrink-0">
+                      {formatDateSeparator(dateKey)}
+                    </span>
+                    <div className="flex-1 h-px bg-darker-blue/20 dark:bg-beige/20" />
+                  </div>
+                );
+              }
+              items.push(
             <div
                 key={msg.id}
                 id={`message-${msg.id}`}
@@ -853,7 +908,10 @@ function ChatPageInner() {
                 </>
               )}
             </div>
-          ))}
+              );
+            });
+            return items;
+          })()}
           <div ref={bottomRef} />
         </div>
 
