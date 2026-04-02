@@ -216,6 +216,8 @@ function ChatPageInner() {
   const scrollHeightBeforeRef = useRef(0);
   const scrollTopBeforeRef = useRef(0);
 
+  const userRef = useRef(user);
+
   const handleReact = async (messageId: string, emoji: string) => {
   if (!token || !user) return;
 
@@ -273,6 +275,8 @@ function ChatPageInner() {
   useEffect(() => {
     if (!loading && !token) router.replace("/auth");
   }, [token, loading, router]);
+
+  useEffect(() => { userRef.current = user; }, [user]);
 
   useEffect(() => {
     const messageId = searchParams.get("message");
@@ -389,6 +393,50 @@ function ChatPageInner() {
       setActive(channels[0].id);
     }
   }, [channels]);
+
+  function applyReactionInsert(
+      prev: Record<string, Message[]>,
+      message_id: string, user_id: string, emoji: string
+  ): Record<string, Message[]> {
+    const list = prev[activeRef.current] ?? [];
+    if (!list.some((m) => m.id === message_id)) return prev;
+    return {
+      ...prev,
+      [activeRef.current]: list.map((m) => {
+        if (m.id !== message_id) return m;
+        const reactions = [...(m.reactions ?? [])];
+        const idx = reactions.findIndex((r) => r.emoji === emoji);
+        if (idx >= 0) {
+          const r = reactions[idx];
+          reactions[idx] = { ...r, count: r.count + 1, users: [...r.users, user_id] };
+        } else {
+          reactions.push({ emoji, count: 1, users: [user_id] });
+        }
+        return { ...m, reactions };
+      }),
+    };
+  }
+
+  function applyReactionDelete(
+      prev: Record<string, Message[]>,
+      message_id: string, user_id: string, emoji: string
+  ): Record<string, Message[]> {
+    const list = prev[activeRef.current] ?? [];
+    if (!list.some((m) => m.id === message_id)) return prev;
+    return {
+      ...prev,
+      [activeRef.current]: list.map((m) => {
+        if (m.id !== message_id) return m;
+        const reactions = (m.reactions ?? [])
+            .map((r) => r.emoji === emoji
+                ? { ...r, count: r.count - 1, users: r.users.filter((u) => u !== user_id) }
+                : r
+            )
+            .filter((r) => r.count > 0);
+        return { ...m, reactions };
+      }),
+    };
+  }
 
   useEffect(() => {
     if (!token || !active) return;
@@ -521,57 +569,50 @@ function ChatPageInner() {
         )
         .on(
             "postgres_changes",
-            { event: "INSERT", schema: "public", table: "message_reactions" },
+            {event: "INSERT", schema: "public", table: "message_reactions"},
             (payload) => {
-              const { message_id, user_id, emoji } = payload.new as {
+              const {message_id, user_id, emoji} = payload.new as {
                 message_id: string; user_id: string; emoji: string;
               };
-              setMessages((prev) => {
-                const list = prev[activeRef.current] ?? [];
-                if (!list.some((m) => m.id === message_id)) return prev;
-                return {
-                  ...prev,
-                  [activeRef.current]: list.map((m) => {
-                    if (m.id !== message_id) return m;
-                    const reactions = [...(m.reactions ?? [])];
-                    const idx = reactions.findIndex((r) => r.emoji === emoji);
-                    if (idx >= 0) {
-                      const r = reactions[idx];
-                      reactions[idx] = { ...r, count: r.count + 1, users: [...r.users, user_id] };
-                    } else {
-                      reactions.push({ emoji, count: 1, users: [user_id] });
-                    }
-                    return { ...m, reactions };
-                  }),
-                };
-              });
+
+              // Skip if this is our own reaction — optimistic update already applied it
+              if (user_id === userRef.current?.id) {
+                setMessages((prev) => {
+                  const list = prev[activeRef.current] ?? [];
+                  const msg = list.find((m) => m.id === message_id);
+                  const alreadyInState = msg?.reactions?.find((r) => r.emoji === emoji)?.users.includes(user_id);
+                  if (alreadyInState) return prev; // optimistic update handled it, ignore broadcast
+                  // Not in state yet (e.g. reacted from another tab/device), fall through and apply
+                  return applyReactionInsert(prev, message_id, user_id, emoji);
+                });
+                return;
+              }
+
+              setMessages((prev) => applyReactionInsert(prev, message_id, user_id, emoji));
             }
         )
         .on(
             "postgres_changes",
             { event: "DELETE", schema: "public", table: "message_reactions" },
             (payload) => {
-              // old is available since (message_id, user_id, emoji) is the PK
               const { message_id, user_id, emoji } = payload.old as {
                 message_id: string; user_id: string; emoji: string;
               };
-              setMessages((prev) => {
-                const list = prev[activeRef.current] ?? [];
-                if (!list.some((m) => m.id === message_id)) return prev;
-                return {
-                  ...prev,
-                  [activeRef.current]: list.map((m) => {
-                    if (m.id !== message_id) return m;
-                    const reactions = (m.reactions ?? [])
-                        .map((r) => r.emoji === emoji
-                            ? { ...r, count: r.count - 1, users: r.users.filter((u) => u !== user_id) }
-                            : r
-                        )
-                        .filter((r) => r.count > 0);
-                    return { ...m, reactions };
-                  }),
-                };
-              });
+
+              // Skip if this is our own reaction — optimistic update already removed it
+              if (user_id === userRef.current?.id) {
+                setMessages((prev) => {
+                  const list = prev[activeRef.current] ?? [];
+                  const msg = list.find((m) => m.id === message_id);
+                  const stillInState = msg?.reactions?.find((r) => r.emoji === emoji)?.users.includes(user_id);
+                  if (!stillInState) return prev; // optimistic update already removed it
+                  // Still in state (e.g. removed from another tab/device), apply removal
+                  return applyReactionDelete(prev, message_id, user_id, emoji);
+                });
+                return;
+              }
+
+              setMessages((prev) => applyReactionDelete(prev, message_id, user_id, emoji));
             }
         )
         .subscribe();
