@@ -126,8 +126,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                     return;
 
                 // Skip if user notification preference is "mention" and message mentions this user
-                if (settingsRef.current.notification_preference === "mentions" && !record.content.includes(`<@!${user?.id}>`))
-                    return;
+                if (
+                    settingsRef.current.notification_preference === "mentions" &&
+                    !record.content.includes(`<@!${user?.id}>`) &&
+                    !record.content.includes("@everyone") // TODO: Ignore @everyone if sender doesn't have perms to ping @everyone
+                ) return;
 
                 const displayName = await getDisplayName(record.user_id);
                 const title = `${displayName} (#${ch.name})`;

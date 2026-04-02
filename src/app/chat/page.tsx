@@ -83,9 +83,9 @@ function formatTime(iso: string) {
   });
 }
 
+// TODO: ensure user sending the message has permission to ping @everyone, else ignore the @everyone
 function isMentioned(content: string, userId?: string): boolean {
-  if (!userId) return false;
-  return content.includes(`<@!${userId}>`);
+  return content.includes("@everyone") || (!!userId && content.includes(`<@!${userId}>`));
 }
 
 function fuzzyMatch(query: string, target: string): boolean {
@@ -120,13 +120,15 @@ function ChatPageInner() {
 
 
 
-  // Find `<@!user_id>` and replace all instances of it with a styled user mention box of `@Display Name`
+  // Find `<@!user_id>` or `@everyone` and replace all instances of it with a styled user mention box of `@Display Name` or `@everyone`
   function parse_msg(text: string, currentUserId?: string): string {
-    return text.replace(/<@!([0-9a-f-]+)>/g, (_, userId) => {
-      const name = profileCache.current.get(userId) ?? "Unknown";
-      const isSelf = userId === currentUserId;
-      return `<span class="mention${isSelf ? " mention-self" : ""}">@${name}</span>`;
-    });
+    return text
+        .replace(/@everyone/g, `<span class="mention mention-self">@everyone</span>`)
+        .replace(/<@!([0-9a-f-]+)>/g, (_, userId) => {
+          const name = profileCache.current.get(userId) ?? "Unknown";
+          const isSelf = userId === currentUserId;
+          return `<span class="mention${isSelf ? " mention-self" : ""}">@${name}</span>`;
+        });
   }
 
   const handleMouseEnter = () => {
@@ -398,9 +400,16 @@ function ChatPageInner() {
     const cursor = inputRef.current?.selectionStart ?? input.length;
     const textBeforeCursor = input.slice(0, cursor);
     const textAfterCursor = input.slice(cursor);
-    const displayText = `@${profile.display_name}`;
+
+    let displayText: string;
+    if (profile.id === "everyone") {
+      displayText = "@everyone";
+    } else {
+      displayText = `@${profile.display_name}`;
+      mentionMap.current.set(displayText, `<@!${profile.id}>`);
+    }
+
     const replaced = textBeforeCursor.replace(/@([^\s@]*)$/, `${displayText} `);
-    mentionMap.current.set(displayText, `<@!${profile.id}>`);
     setInput(replaced + textAfterCursor);
     setMentionQuery(null);
     setMentionResults([]);
@@ -459,9 +468,11 @@ function ChatPageInner() {
     if (match) {
       const query = match[1];
       setMentionQuery(query);
-      const results = profiles.filter(
-          (p) => fuzzyMatch(query, p.display_name)
-      ).slice(0, 5);
+      const everyone = { id: "everyone", display_name: "everyone" };
+      const results = [
+        ...(fuzzyMatch(query, "everyone") ? [everyone] : []),
+        ...profiles.filter((p) => fuzzyMatch(query, p.display_name)),
+      ].slice(0, 5);
       setMentionResults(results);
       setMentionIndex(0);
     } else {
