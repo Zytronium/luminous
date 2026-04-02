@@ -7,11 +7,18 @@ import { createSupabaseClient } from "@/lib/supabase/client";
 import { Monitor, Sun, Moon, LogOut, ChevronLeft, Check } from "lucide-react";
 
 type Theme = UserSettings["theme"];
+type NotificationPreference = "none" | "mentions" | "all";
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: React.ReactNode }[] = [
   { value: "light",  label: "Light",  icon: <Sun     size={15} /> },
   { value: "system", label: "System", icon: <Monitor size={15} /> },
   { value: "dark",   label: "Dark",   icon: <Moon    size={15} /> },
+];
+
+const NOTIFICATION_OPTIONS: { value: NotificationPreference; label: string }[] = [
+  { value: "none", label: "None" },
+  { value: "mentions", label: "Mentions only" },
+  { value: "all", label: "All messages" }
 ];
 
 const supabase = createSupabaseClient();
@@ -95,7 +102,6 @@ export default function SettingsPage() {
   }, [settings]);
 
   // Change handlers
-
   function changeTheme(theme: Theme) {
     applyTheme(theme);                     // instant DOM update
     setSettings((s) => ({ ...s, theme }));
@@ -106,8 +112,11 @@ export default function SettingsPage() {
     setSettings((s) => ({ ...s, reduce_animations: reduce }));
   }
 
-  // Log out
+  function changeNotificationPreference(pref: NotificationPreference) {
+    setSettings((s) => ({ ...s, notification_preference: pref }));
+  }
 
+  // Log out
   const handleLogout = async () => {
     setLoggingOut(true);
     clearAuth();                           // clears session + localStorage cache
@@ -115,7 +124,6 @@ export default function SettingsPage() {
   };
 
   // Render
-
   return (
     <div className="min-h-screen w-full bg-beige dark:bg-darker-blue flex flex-col items-center px-4 py-8">
 
@@ -205,6 +213,31 @@ export default function SettingsPage() {
           />
         </SettingRow>
 
+      </Section>
+
+      <Section label="Notifications">
+        <SettingRow
+            title="Default global notification preference"
+            description="Change which messages notify you by default."
+            loading={settingsLoading}
+        >
+          <div className="flex rounded-2xl bg-darker-blue/10 dark:bg-offwhite/10 p-1 gap-1 mt-3">
+          {NOTIFICATION_OPTIONS.map(({ value, label }) => (
+              <button
+                  key={value}
+                  onClick={() => changeNotificationPreference(value)}
+                  disabled={settingsLoading}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                      settings.notification_preference === value
+                          ? "bg-teal text-darker-blue shadow-sm"
+                          : "text-darker-blue/60 dark:text-offwhite/60 hover:text-darker-blue dark:hover:text-offwhite"
+                  }`}
+              >
+                {label}
+              </button>
+          ))}
+          </div>
+        </SettingRow>
       </Section>
 
       {/* App - Electron only */}

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, Suspense, lazy } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { SendHorizonal, Menu, Hash, Minus, Square, X, Check, Ban } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import MessageHover from "@/components/MessageHover";
 import MessageReactions from "@/components/MessageReactions";
@@ -82,9 +83,26 @@ function formatTime(iso: string) {
   });
 }
 
-export default function ChatPage() {
+// TODO: ensure user sending the message has permission to ping @everyone, else ignore the @everyone
+function isMentioned(content: string, userId?: string): boolean {
+  return content.includes("@everyone") || (!!userId && content.includes(`<@!${userId}>`));
+}
+
+function fuzzyMatch(query: string, target: string): boolean {
+  const q = query.toLowerCase();
+  const t = target.toLowerCase();
+  let qi = 0;
+  for (let i = 0; i < t.length && qi < q.length; i++) {
+    if (t[i] === q[qi]) qi++;
+  }
+  return qi === q.length;
+}
+
+function ChatPageInner() {
   const { token, user, loading } = useAuth();
   const router = useRouter();
+  const { setActiveChannel } = useNotifications();
+  const searchParams = useSearchParams();
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [active, setActive] = useState<string>("");
@@ -92,9 +110,26 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profiles, setProfiles] = useState<{ id: string; display_name: string }[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionResults, setMentionResults] = useState<{ id: string; display_name: string }[]>([]);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [isElectron, setIsElectron] = useState(false);
   const [isMac, setIsMac] = useState(false);
   const [currentIcon, setCurrentIcon] = useState(DefaultIcon);
+
+
+
+  // Find `<@!user_id>` or `@everyone` and replace all instances of it with a styled user mention box of `@Display Name` or `@everyone`
+  function parse_msg(text: string, currentUserId?: string): string {
+    return text
+        .replace(/@everyone/g, `<span class="mention mention-self">@everyone</span>`)
+        .replace(/<@!([0-9a-f-]+)>/g, (_, userId) => {
+          const name = profileCache.current.get(userId) ?? "Unknown";
+          const isSelf = userId === currentUserId;
+          return `<span class="mention${isSelf ? " mention-self" : ""}">@${name}</span>`;
+        });
+  }
 
   const handleMouseEnter = () => {
     const randomIcon = ReactIcons[Math.floor(Math.random() * ReactIcons.length)];
@@ -118,6 +153,9 @@ export default function ChatPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const activeRef = useRef<string>("");
+  const pendingScrollRef = useRef<string | null>(null);
+  const mentionMap = useRef<Map<string, string>>(new Map()); // "@Display Name" -> "<@!uuid>"
 
   const handleReact = async (messageId: string, emoji: string) => {
     if (!token) return;
@@ -151,7 +189,21 @@ export default function ChatPage() {
   }, [token, loading, router]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const messageId = searchParams.get("message");
+    if (!messageId)
+      bottomRef.current?.scrollIntoView({ behavior: "instant" });
+
+    // If we have a pending scroll target and the messages for this
+    // channel have just loaded, scroll to it now
+    if (pendingScrollRef.current && (messages[active]?.length ?? 0) > 0) {
+      const messageId = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+      setTimeout(() => {
+        const el = document.getElementById(`message-${messageId}`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        el?.classList.add("highlight");
+      }, 50); // just enough time for the DOM to paint
+    }
   }, [messages, active]);
 
   useEffect(() => {
@@ -171,6 +223,31 @@ export default function ChatPage() {
     if (editingId) editRef.current?.focus();
   }, [editingId]);
 
+  useEffect(() => {
+    activeRef.current = active;
+    setActiveChannel(active);
+  }, [active, setActiveChannel]);
+
+  useEffect(() => {
+    return () => setActiveChannel(null);
+  }, [setActiveChannel]);
+
+  useEffect(() => {
+    const channelId = searchParams.get("channel");
+    const messageId = searchParams.get("message");
+    if (!channelId || channels.length === 0) return;
+
+    // Switch to the right channel
+    setActive(channelId);
+
+    if (messageId) {
+      pendingScrollRef.current = messageId;
+    }
+
+    // Clear params from URL so a refresh doesn't re-trigger this
+    router.replace("/chat");
+  }, [searchParams, channels]);
+
   const getDisplayName = useCallback(async (userId: string): Promise<string> => {
     if (profileCache.current.has(userId))
       return profileCache.current.get(userId)!;
@@ -185,95 +262,232 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (loading || !token) return;
+
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/channels`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
-      .then((data: Channel[]) => {
-        setChannels(data);
-        if (data.length > 0) setActive(data[0].id);
-      })
-      .finally(() => setLoadingChannels(false));
+        .then((r) => { if (!r.ok) return null; return r.json(); })
+        .then((data) => { if (Array.isArray(data)) setChannels(data); })
+        .finally(() => setLoadingChannels(false));
+  }, [token, loading]);
+
+  useEffect(() => {
+    if (!token) return;
+    supabase.from("profiles").select("id, display_name").then(({ data }) => {
+      if (data) setProfiles(data);
+    });
   }, [token]);
+
+  useEffect(() => {
+    if (channels.length > 0 && !active) {
+      setActive(channels[0].id);
+    }
+  }, [channels]);
 
   useEffect(() => {
     if (!token || !active) return;
 
-    fetch(
+    const loadMessages = async () => {
+        const r = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/channel/${active}/messages`,
       { headers: { Authorization: `Bearer ${token}` } }
-    )
-      .then((r) => r.json())
-      .then((data: DbMessage[]) => {
+        );
+        const data: DbMessage[] = await r.json();
         if (!Array.isArray(data)) return;
-        const mapped: Message[] = data.map((m) => ({
+
+        const mapped: Message[] = await Promise.all(data.map(async (m) => ({
           id: m.id,
           author: m.profiles?.display_name ?? "Unknown",
           authorId: m.user_id,
           content: m.content,
           time: formatTime(m.created_at),
-        }));
+        })));
+
         setMessages((prev) => ({ ...prev, [active]: mapped }));
-      });
 
-    const channel = supabase.channel(`channel:${active}:messages`, {
-      config: { private: true },
-    });
+        // Resolve any mentions not yet in the cache
+        const mentionIds = new Set<string>();
+        data.forEach((m) => {
+          for (const match of m.content.matchAll(/<@!([0-9a-f-]+)>/g)) {
+            if (!profileCache.current.has(match[1])) mentionIds.add(match[1]);
+          }
+        });
 
-    channel
-      .on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
-        const record = payload.record;
-        const displayName = await getDisplayName(record.user_id);
-        const msg: Message = {
-          id: record.id,
-          author: displayName,
-          authorId: record.user_id,
-          content: record.content,
-          time: formatTime(record.created_at),
-        };
-        setMessages((prev) => ({
-          ...prev,
-          [active]: [...(prev[active] ?? []), msg],
-        }));
-      })
-      .on("broadcast", { event: "UPDATE" }, ({ payload }: UpdateBroadcastPayload) => {
-        const { id, content } = payload.record;
-        setMessages((prev) => {
-          const list = prev[active] ?? [];
-          return { ...prev, [active]: list.map((m) => m.id === id ? { ...m, content } : m) };
-        });
-      })
-      .on("broadcast", { event: "DELETE" }, ({ payload }: DeleteBroadcastPayload) => {
-        const id = payload.old_record?.id ?? payload.record?.id;
-        if (!id) return;
-        setMessages((prev) => {
-          const list = prev[active] ?? [];
-          return { ...prev, [active]: list.filter((m) => m.id !== id) };
-        });
-        setEditingId((prev) => (prev === id ? null : prev));
-      })
-      .subscribe();
+        if (mentionIds.size > 0) {
+          await Promise.all([...mentionIds].map(getDisplayName));
+          // Re-render now that the cache is populated
+          setMessages((prev) => ({ ...prev }));
+        }
+    };
+
+    loadMessages();
+
+    const channel = supabase
+        .channel(`chat-page:${active}`)
+        .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "messages", filter: `channel_id=eq.${active}` },
+            async (payload) => {
+              const channelId = active; // capture before any await
+              const record = payload.new as Omit<DbMessage, "profiles">;
+              const displayName = await getDisplayName(record.user_id);
+              setMessages((prev) => ({
+                ...prev,
+                [channelId]: [...(prev[channelId] ?? []), {
+                  id: record.id,
+                  author: displayName,
+                  authorId: record.user_id,
+                  content: record.content,
+                  time: formatTime(record.created_at),
+                  reactions: [],
+                }],
+              }));
+
+              // Resolve any mention IDs not yet in the cache
+              const mentionIds = [...record.content.matchAll(/<@!([0-9a-f-]+)>/g)]
+                  .map((m) => m[1])
+                  .filter((id) => !profileCache.current.has(id));
+
+              if (mentionIds.length > 0) {
+                  await Promise.all(mentionIds.map(getDisplayName));
+                  setMessages((prev) => ({ ...prev }));
+              }
+            }
+        )
+        .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "messages", filter: `channel_id=eq.${active}` },
+            (payload) => {
+              const { id, content } = payload.new as { id: string; content: string };
+              setMessages((prev) => {
+                const list = prev[active] ?? [];
+                return { ...prev, [active]: list.map((m) => m.id === id ? { ...m, content } : m) };
+              });
+            }
+        )
+        .on(
+            "postgres_changes",
+            { event: "DELETE", schema: "public", table: "messages", filter: `channel_id=eq.${active}` },
+            (payload) => {
+              const id = (payload.old as { id: string }).id;
+              if (!id) return;
+              setMessages((prev) => {
+                const list = prev[active] ?? [];
+                return { ...prev, [active]: list.filter((m) => m.id !== id) };
+              });
+              setEditingId((prev) => (prev === id ? null : prev));
+            }
+        )
+        .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [active, token, getDisplayName]);
 
   async function send() {
     const text = input.trim();
-    if (!text || !token) return;
+    if (!text || !token)
+      return;
+
+    // Convert @Display Name back to <@!uuid>
+    let rawText = text;
+    mentionMap.current.forEach((raw, display) => {
+      rawText = rawText.replaceAll(display, raw);
+    });
+
     setInput("");
+    mentionMap.current.clear();
     inputRef.current?.focus();
+
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/message/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ channelId: active, content: text }),
+      body: JSON.stringify({ channelId: active, content: rawText }),
     });
   }
 
+  function insertMention(profile: { id: string; display_name: string }) {
+    const cursor = inputRef.current?.selectionStart ?? input.length;
+    const textBeforeCursor = input.slice(0, cursor);
+    const textAfterCursor = input.slice(cursor);
+
+    let displayText: string;
+    if (profile.id === "everyone") {
+      displayText = "@everyone";
+    } else {
+      displayText = `@${profile.display_name}`;
+      mentionMap.current.set(displayText, `<@!${profile.id}>`);
+    }
+
+    const replaced = textBeforeCursor.replace(/@([^\s@]*)$/, `${displayText} `);
+    setInput(replaced + textAfterCursor);
+    setMentionQuery(null);
+    setMentionResults([]);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
   function handleKey(e: React.KeyboardEvent) {
+    if (mentionResults.length > 0) {
+      if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        insertMention(mentionResults[mentionIndex]);
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % mentionResults.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + mentionResults.length) % mentionResults.length);
+        return;
+      }
+      if (e.key === "Escape") {
+        setMentionQuery(null);
+        setMentionResults([]);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
+    }
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    let val = e.target.value;
+
+    // Convert any manually typed <@!uuid> to @Display Name
+    val = val.replace(/<@!([0-9a-f-]+)>/g, (full, userId) => {
+        const profile = profiles.find((p) => p.id === userId);
+        if (!profile)
+            return full; // leave as-is if not found
+        const displayText = `@${profile.display_name}`;
+        mentionMap.current.set(displayText, full);
+        return displayText;
+    });
+
+    setInput(val);
+
+    // Detect @mention autocomplete
+    const cursor = e.target.selectionStart ?? val.length;
+    const textBeforeCursor = val.slice(0, cursor);
+    const match = textBeforeCursor.match(/@([^\s@]*)$/);
+
+    if (match) {
+      const query = match[1];
+      setMentionQuery(query);
+      const everyone = { id: "everyone", display_name: "everyone" };
+      const results = [
+        ...(fuzzyMatch(query, "everyone") ? [everyone] : []),
+        ...profiles.filter((p) => fuzzyMatch(query, p.display_name)),
+      ].slice(0, 5);
+      setMentionResults(results);
+      setMentionIndex(0);
+    } else {
+      setMentionQuery(null);
+      setMentionResults([]);
     }
   }
 
@@ -433,7 +647,12 @@ export default function ChatPage() {
             <p className="text-center text-darker-blue/75 dark:text-offwhite/75 text-sm mt-4">Channel empty.</p>
           )}
           {msgs.map((msg) => (
-            <div key={msg.id} className="group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-darker-blue/5 dark:hover:bg-white/5 transition-colors">
+            <div
+                key={msg.id}
+                id={`message-${msg.id}`}
+                className={`group relative flex flex-col gap-2 w-full px-4 py-2 hover:bg-darker-blue/5 dark:hover:bg-white/5 transition-colors  ${
+                  isMentioned(msg.content, user?.id) ? "bg-teal/25 dark:bg-teal/15 border-l-2 border-teal" : ""
+                }`}>
               {editingId !== msg.id && (
                 <div className="absolute right-4 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                   <MessageHover
@@ -482,9 +701,10 @@ export default function ChatPage() {
                 </div>
               ) : (
                 <>
-                  <div className="text-sm text-darker-blue dark:text-offwhite wrap-break-words ml-10">
-                    {msg.content}
-                  </div>
+                  <div
+                      className="text-sm text-darker-blue dark:text-offwhite wrap-break-words ml-10"
+                      dangerouslySetInnerHTML={{ __html: parse_msg(msg.content, user?.id) }}
+                  />
                   <MessageReactions reactions={msg.reactions || []} />
                 </>
               )}
@@ -522,10 +742,28 @@ export default function ChatPage() {
 
           <div className="flex flex-row items-center gap-2 w-full">
             <div className="relative flex-1 flex items-center">
+              {mentionResults.length > 0 && (
+                  <div className="absolute bottom-full left-0 mb-2 w-64 rounded-2xl border-2 border-teal/20 bg-beige dark:bg-dark-blue shadow-xl overflow-hidden z-50">
+                    {mentionResults.map((p, i) => (
+                        <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); insertMention(p); }}
+                            className={`w-full text-left px-4 py-2.5 text-sm font-semibold transition-colors ${
+                                i === mentionIndex
+                                    ? "bg-teal/20 text-teal"
+                                    : "text-darker-blue dark:text-offwhite hover:bg-teal/10"
+                            }`}
+                        >
+                          @{p.display_name}
+                        </button>
+                    ))}
+                  </div>
+              )}
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKey}
                 placeholder={activeChannel ? `Message #${activeChannel.name}` : ""}
                 disabled={!activeChannel}
@@ -565,5 +803,13 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+      <Suspense>
+        <ChatPageInner />
+      </Suspense>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import TitleBar from "@/components/Titlebar";
+import {NotificationProvider} from "@/context/NotificationContext";
 
 export const metadata: Metadata = {
   title: "Luminous - The chat app for Atlas School",
@@ -43,10 +44,12 @@ export default function RootLayout({
       </head>
       <body className="antialiased flex flex-col h-screen w-screen overflow-hidden">
         <AuthProvider>
-          <TitleBar />
-          <div className="flex-1 flex flex-col h-screen w-screen overflow-auto">
-            {children}
-          </div>
+          <NotificationProvider>
+            <TitleBar />
+            <div className="flex-1 flex flex-col h-screen w-screen overflow-auto">
+              {children}
+            </div>
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

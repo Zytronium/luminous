@@ -24,11 +24,13 @@ type Session = {
 export type UserSettings = {
   theme: "light" | "system" | "dark";
   reduce_animations: boolean;
+  notification_preference: "none" | "mentions" | "all";
 };
 
 const SETTINGS_DEFAULTS: UserSettings = {
   theme: "dark",
   reduce_animations: false,
+  notification_preference: "mentions",
 };
 
 const SETTINGS_CACHE_KEY = "luminous_settings";
@@ -89,14 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSettingsLoading(true);
     const { data, error } = await supabase
       .from("user_settings")
-      .select("theme, reduce_animations")
+      .select("theme, reduce_animations, notification_preference")
       .eq("user_id", userId)
       .maybeSingle();
 
     if (!error && data) {
       const loaded: UserSettings = {
-        theme:             (data.theme as UserSettings["theme"]) ?? SETTINGS_DEFAULTS.theme,
-        reduce_animations: data.reduce_animations ?? SETTINGS_DEFAULTS.reduce_animations,
+        theme:                   (data.theme as UserSettings["theme"]) ?? SETTINGS_DEFAULTS.theme,
+        reduce_animations:       data.reduce_animations ?? SETTINGS_DEFAULTS.reduce_animations,
+        notification_preference: data.notification_preference ?? SETTINGS_DEFAULTS.notification_preference,
       };
       setSettings(loaded);
       applySettings(loaded);
@@ -109,14 +112,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Restore session on mount + subscribe to auth state changes ────────────
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) {
+        // Force a refresh once on mount so the token is guaranteed fresh
+        const { data: refreshData } = await supabase.auth.refreshSession({ refresh_token: data.session.refresh_token });
+        const session = refreshData.session ?? data.session;
+
         const u: User = {
-          id:          data.session.user.id,
-          email:       data.session.user.email ?? "",
-          displayName: data.session.user.user_metadata?.display_name ?? "",
+          id:          session.user.id,
+          email:       session.user.email ?? "",
+          displayName: session.user.user_metadata?.display_name ?? "",
         };
-        setSession(data.session);
+        setSession(session);
         setUser(u);
         loadSettings(u.id);
       } else {
