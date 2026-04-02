@@ -30,7 +30,7 @@
 
 ---
 
-# Current Branch Todo List (notifications)
-- Fix @Unknown user display name lookup for users who have not appeared in the channel yet
-- Scroll to the message upon clicking on the notification
-- Only make notification sounds in browser if electron is not also open (not sure how to do this one but I have ideas)
+# Bugs
+- Clicking on a message notification fails to scroll to the message
+- Notification sounds play both in browser and electron app if both are open and logged in to the same user.
+
