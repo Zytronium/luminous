@@ -31,7 +31,6 @@
 ---
 
 # Current Branch Todo List (notifications)
-
-- Implement user mentions and pings (@everyone, @role, @user)
+- Fix @Unknown user display name lookup for users who have not appeared in the channel yet
 - Scroll to the message upon clicking on the notification
 - Only make notification sounds in browser if electron is not also open (not sure how to do this one but I have ideas)
