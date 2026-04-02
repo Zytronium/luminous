@@ -8,7 +8,10 @@ import { useRouter } from "next/navigation";
 type Channel = { id: string; name: string };
 
 type InsertBroadcastPayload = {
-    payload: { record: { id: string; user_id: string; content: string; created_at: string } };
+    payload: {
+        new: any;
+        old: any;
+        record: { id: string; user_id: string; content: string; created_at: string } };
 };
 
 const supabase = createSupabaseClient();
@@ -127,9 +130,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             });
 
             sub.on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
-                const record = payload.record;
-                // Skip if this user sent the message
-                if (record.user_id === user?.id)
+                const record = payload.new as {  id: string; user_id: string; channel_id: string; content: string;[key: string]: unknown };
+                // Skip if this user sent the message or record doesn't exist (i.e. this is a delete instead of insert)
+                if (!record || record.user_id === user?.id)
                     return;
 
                 // Skip if the user is looking at this channel with the window in focus
