@@ -206,6 +206,7 @@ function ChatPageInner() {
   // Profile cache: userId -> displayName
   const profileCache = useRef<Map<string, string>>(new Map());
 
+  const initialScrollDoneRef = useRef<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const activeRef = useRef<string>("");
@@ -296,6 +297,13 @@ function ChatPageInner() {
     const messageId = searchParams.get("message");
     const isChannelSwitch = prevActiveRef.current !== active;
     prevActiveRef.current = active;
+
+    // On initial load for a channel, scroll to bottom once messages arrive
+    if (!initialScrollDoneRef.current.has(active) && (messages[active]?.length ?? 0) > 0) {
+      initialScrollDoneRef.current.add(active);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "instant" }), 0);
+      return;
+    }
 
     // Never interfere when we just prepended older messages. The
     // useLayoutEffect above already restored the exact scroll position.
