@@ -195,6 +195,9 @@ function ChatPageInner() {
   // Emoji Picker State
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  // Message options menu state
+  const [pinnedMenuId, setPinnedMenuId] = useState<string | null>(null);
+
   // Inline message editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -277,6 +280,17 @@ function ChatPageInner() {
   }, [token, loading, router]);
 
   useEffect(() => { userRef.current = user; }, [user]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      // If the click isn't inside a message context menu, unpin
+      if (!(e.target as Element).closest("[data-message-hover]")) {
+        setPinnedMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     const messageId = searchParams.get("message");
@@ -1000,7 +1014,14 @@ function ChatPageInner() {
                   isMentioned(msg.content, user?.id) ? "bg-teal/25 dark:bg-teal/15 border-l-2 border-teal" : ""
                 }`}>
               {editingId !== msg.id && (
-                <div className="absolute right-4 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+<div
+    data-message-hover
+    className={`absolute right-4 top-2 transition-opacity z-20 ${
+        pinnedMenuId === msg.id
+            ? "opacity-100"
+            : "opacity-0 group-hover:opacity-100"
+    }`}
+>
                   <MessageHover
                     messageId={msg.id}
                     authorId={msg.authorId}
@@ -1008,6 +1029,8 @@ function ChatPageInner() {
                     onEdit={startEdit}
                     onDelete={handleDelete}
                     onReact={handleReact}
+                    onMenuOpen={() => setPinnedMenuId(msg.id)}
+                    onMenuClose={() => setPinnedMenuId(null)}
                   />
                 </div>
               )}

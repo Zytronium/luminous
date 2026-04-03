@@ -39,4 +39,3 @@
 # Bugs
 - Clicking on a message notification fails to scroll to the message
 - Notification sounds play both in browser and electron app if both are open and logged in to the same user.
-- Message context menu disappears when you hover over another message

@@ -5,19 +5,24 @@ interface MessageOptionsProps {
     isOwnMessage: boolean;
     onEdit: () => void;
     onDelete: () => void;
+    onMenuOpen?: () => void;
+    onMenuClose?: () => void;
 }
 
-export default function MessageOptions({ isOwnMessage, onEdit, onDelete }: MessageOptionsProps) {
+export default function MessageOptions({ isOwnMessage, onEdit, onDelete, onMenuOpen, onMenuClose }: MessageOptionsProps) {
     const [isOpen, setIsOpen] = useState<boolean>(false);
 
     if (!isOwnMessage) return null;
 
     const toggleDropdown = () => {
+        if (!isOpen) onMenuOpen?.();
+        else onMenuClose?.();
         setIsOpen(!isOpen);
     };
 
     const closeDropdown = () => {
         setIsOpen(false);
+        onMenuClose?.();
     };
 
     return (

@@ -23,9 +23,11 @@ interface MessageHoverProps {
     onEdit: (messageId: string) => void;
     onDelete: (messageId: string) => void;
 	onReact: (messageId: string, emoji: string) => void;
+    onMenuOpen?: () => void;
+    onMenuClose?: () => void;
 }
 
-export default function MessageHover({ messageId, authorId, userId, onEdit, onDelete, onReact }: MessageHoverProps) {
+export default function MessageHover({ messageId, authorId, userId, onEdit, onDelete, onReact, onMenuOpen, onMenuClose }: MessageHoverProps) {
     const isOwnMessage = authorId === userId;
     const [showReactions, setShowReactions] = useState(false);
     const [currentIcon, setCurrentIcon] = useState(DefaultIcon);
@@ -52,6 +54,9 @@ export default function MessageHover({ messageId, authorId, userId, onEdit, onDe
                 left: rect.left - 300,
                 isBottom: openDownward
             });
+            onMenuOpen?.();
+        } else {
+            onMenuClose?.();
         }
         setShowReactions(!showReactions);
     };
@@ -94,7 +99,8 @@ export default function MessageHover({ messageId, authorId, userId, onEdit, onDe
                             onEmojiClick={(emojiData) => {
                                 onReact(messageId, emojiData.emoji);
                                 setShowReactions(false);
-                            }} 
+                                onMenuClose?.();
+                            }}
                         />
                     </Suspense>
                 </div>,
@@ -113,7 +119,9 @@ export default function MessageHover({ messageId, authorId, userId, onEdit, onDe
                 isOwnMessage={isOwnMessage}
                 onEdit={() => onEdit(messageId)}
                 onDelete={() => onDelete(messageId)}
+                onMenuOpen={onMenuOpen}
+                onMenuClose={onMenuClose}
             />
         </div>
     );
-};
+}
