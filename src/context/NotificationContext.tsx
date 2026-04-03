@@ -9,9 +9,12 @@ type Channel = { id: string; name: string };
 
 type InsertBroadcastPayload = {
     payload: {
-        new: any;
-        old: any;
-        record: { id: string; user_id: string; content: string; created_at: string } };
+        record: { id: string; user_id: string; channel_id: string; content: string; created_at: string };
+        old_record: null;
+        operation: string;
+        schema: string;
+        table: string;
+    };
 };
 
 const supabase = createSupabaseClient();
@@ -83,6 +86,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     useEffect(() => {
         audioRef.current = new Audio("/audio/ping.ogg");
         isElectronRef.current = !!window.electronAPI?.isElectron;
+
+        if (!isElectronRef.current && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
     }, []);
 
 
@@ -130,7 +137,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             });
 
             sub.on("broadcast", { event: "INSERT" }, async ({ payload }: InsertBroadcastPayload) => {
-                const record = payload.new as {  id: string; user_id: string; channel_id: string; content: string;[key: string]: unknown };
+                console.log("🔔 RAW BROADCAST PAYLOAD:", JSON.stringify(payload, null, 2));
+                const record = payload.record;
+
                 // Skip if this user sent the message or record doesn't exist (i.e. this is a delete instead of insert)
                 if (!record || record.user_id === user?.id)
                     return;
@@ -158,6 +167,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
                 if (isElectronRef.current) {
                     window.electronAPI?.notify(title, body, ch.id, record.id);
+                } else if (Notification.permission === "granted") {
+                    const n = new Notification(title, { body, silent: true });
+                    n.onclick = () => {
+                        window.focus();
+                        router.push(`/chat?channel=${ch.id}&message=${record.id}`);
+                    };
                 }
 
                 audioRef.current?.play().catch(() => {});
