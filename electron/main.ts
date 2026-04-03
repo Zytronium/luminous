@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, Menu, Tray, nativeImage, Notification, ipcMain } from "electron";
+import { app, BrowserWindow, shell, Menu, Tray, nativeImage, Notification, ipcMain, screen } from "electron";
 import { join } from "path";
 import { spawn, ChildProcess } from "child_process";
 import { getPort } from "get-port-please";
@@ -50,6 +50,59 @@ ipcMain.on("notification:send", (_, title: string, body: string, channelId: stri
   });
 
   notification.show();
+});
+
+ipcMain.on("become-sentient", () => {
+  console.log("[become-sentient] IPC received");
+
+  const win = mainWindow;
+  if (!win) {
+    console.error("[become-sentient] No mainWindow — aborting");
+    return;
+  }
+
+  const display = screen.getPrimaryDisplay();
+  const { width: sw, height: sh } = display.workAreaSize;
+  const [ww, wh] = win.getSize();
+  let [x, y] = win.getPosition();
+
+  console.log(`[become-sentient] Screen: ${sw}x${sh}, Window: ${ww}x${wh}, Position: (${x}, ${y})`);
+
+  let dx: number = 8, dy: number = 6;
+  const duration = 10000;
+  const start: number = Date.now();
+  let ticks = 0;
+
+  const interval = setInterval(() => {
+    const elapsed = Date.now() - start;
+    if (elapsed >= duration) {
+      console.log(`[become-sentient] Done after ${ticks} ticks`);
+      clearInterval(interval);
+      return;
+    }
+
+    // Apply velocity to movement
+    x += dx;
+    y += dy;
+
+    // Bounce off of screen edges
+    if (x <= 0 || x + ww >= sw) {
+      dx = -dx;
+      x = Math.max(0, Math.min(x, sw - ww));
+    }
+    if (y <= 0 || y + wh >= sh) {
+      dy = -dy;
+      y = Math.max(0, Math.min(y, sh - wh));
+    }
+
+    if (ticks < 5 || ticks % 60 === 0) {
+      console.log(`[become-sentient] tick=${ticks} elapsed=${elapsed}ms pos=(${Math.round(x)}, ${Math.round(y)}) vel=(${dx}, ${dy})`);
+    }
+
+    // Move window
+    win.setPosition(Math.round(x), Math.round(y));
+    ticks++;
+  }, 16); // ~60 FPS
 });
 
 // Connectivity check: DNS lookup is lightweight and works without a full HTTP
@@ -183,6 +236,11 @@ async function createWindow() {
       sandbox: true,
     },
   });
+
+  // Open DevTools in development
+  if (process.env.NODE_ENV === "development") {
+    mainWindow.webContents.openDevTools({ mode: "detach" });
+  }
 
   // Open external links in OS browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

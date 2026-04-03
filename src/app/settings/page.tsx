@@ -252,6 +252,15 @@ export default function SettingsPage() {
                   onChange={changeMinimizeToTray}
               />
             </SettingRow>
+
+            <SettingRow
+              title="Give Luminous a mind of its own for 10 seconds"
+              description="Press the button for a surprise!"
+              >
+              <button className="button btn-primary rounded-4xl cursor-pointer mt-3" onClick={() => (window as any).electronAPI.becomeSentient()}>
+                Enable Luminous Sentience
+              </button>
+            </SettingRow>
           </Section>
       )}
 
