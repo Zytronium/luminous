@@ -82,6 +82,20 @@ type DeleteBroadcastPayload = {
 
 const supabase = createSupabaseClient();
 
+/** Escapes characters that have special meaning in HTML.
+ *  Must be applied to any user-controlled string that is embedded inside an
+ *  HTML attribute or text node that will be injected into the DOM *after*
+ *  DOMPurify has already run (e.g. mention spans restored post-sanitization).
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
   const now = new Date();
@@ -194,15 +208,67 @@ function ChatPageInner() {
       return `%%MENTION_${mentionSpans.length - 1}%%`;
     })
         .replace(/<@!([0-9a-f-]+)>/g, (_, userId) => {
-          const name = profileCache.current.get(userId) ?? "Unknown";
+          // escapeHtml is required here: mention spans are re-injected into the
+          // DOM *after* DOMPurify runs, so any HTML in the display name would
+          // bypass sanitization entirely without this step.
+          const name = escapeHtml(profileCache.current.get(userId) ?? "Unknown");
           const isSelf = userId === currentUserId;
       mentionSpans.push(`<span class="mention${isSelf ? " mention-self" : ""}">@${name}</span>`);
       return `%%MENTION_${mentionSpans.length - 1}%%`;
         });
 
   // 2. Run markdown (mentions are now plain tokens, safe from escaping)
-  const rawHtml = marked.parse(protected_text, { breaks: true, gfm: true }) as string;
-  const cleanHtml = typeof window !== "undefined" ? DOMPurify.sanitize(rawHtml) : rawHtml;
+  //
+  // Escape '<' before handing the text to marked. Every HTML tag starts with '<',
+  // so this prevents raw HTML injection at the source — marked never sees a tag
+  // to pass through. Common markdown syntax (**bold**, *em*, > blockquote, etc.)
+  // does not use '<', so nothing is lost. The only intentional trade-off is GFM
+  // autolinks (<https://example.com>) which are disabled, acceptable for chat.
+  //
+  // Note: renderer.html / the 'html' token hook is NOT sufficient on its own
+  // because it only fires for block-level HTML tokens. Inline tags like <strong>
+  // and <em> are lexed as Tag tokens through the inline renderer path and bypass
+  // that hook entirely.
+  // Build the text that will be handed to marked with raw HTML neutralised.
+  //
+  // We must NOT touch '<' inside code spans/blocks: marked escapes their content
+  // itself, so a '<' we pre-escape becomes '&amp;lt;' in the final HTML and the
+  // browser shows the literal string "&lt;" instead of "<".
+  //
+  // Order of operations:
+  //   1. Stash \< escape sequences — restore later so marked renders them as <.
+  //   2. Stash fenced code blocks (``` / ~~~) and inline code (`…`) verbatim.
+  //   3. Escape every remaining '<' — these are raw HTML injection attempts.
+  //   4. Restore \< so marked can process the escape.
+  //   5. Restore code blocks/spans with their original '<' characters intact.
+  const codeStash: string[] = [];
+  const noHtmlText = protected_text
+    // 1. protect \<
+    .replace(/\\</g, "%%ESC_LT%%")
+    // 2. stash fenced blocks (``` or ~~~, non-greedy) then inline code spans
+    .replace(/(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`)/g, (match) => {
+      codeStash.push(match);
+      return `%%CODE_${codeStash.length - 1}%%`;
+    })
+    // 3. escape '&' so user-typed entities like &lt; or &amp; display as literal
+    //    text instead of being interpreted by the browser. Runs after the code
+    //    stash (marked escapes & inside code itself) and before step 4 (otherwise
+    //    the &lt; we insert there would be double-escaped to &amp;lt;).
+    .replace(/&/g, "&amp;")
+    // 4. block raw HTML
+    .replace(/</g, "&lt;")
+    // 5. restore \< for marked
+    .replace(/%%ESC_LT%%/g, "\\<")
+    // 6. restore code blocks/spans untouched
+    .replace(/%%CODE_(\d+)%%/g, (_, i) => codeStash[parseInt(i)]);
+
+  const rawHtml = marked.parse(noHtmlText, { breaks: true, gfm: true }) as string;
+
+  // Always sanitize — defense-in-depth against anything the renderer misses.
+  // No typeof window guard: this is a "use client" component so window is always
+  // defined at render time, and dropping the guard prevents the sanitizer from
+  // being silently skipped if this logic is ever reused elsewhere.
+  const cleanHtml = DOMPurify.sanitize(rawHtml);
 
   // 3. Restore mention spans
   return cleanHtml.replace(/%%MENTION_(\d+)%%/g, (_, i) => mentionSpans[parseInt(i)]);
