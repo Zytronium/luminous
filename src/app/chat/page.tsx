@@ -136,6 +136,31 @@ function fuzzyMatch(query: string, target: string): boolean {
   return qi === q.length;
 }
 
+function parseDiscordBridgeMessage(userId: string, content: string, displayName: string): {
+  author: string;
+  content: string
+} {
+  const DISCORD_BRIDGE_USER_ID = "35c4a103-d94e-4677-a34f-628eb8b2a241";
+
+  if (userId !== DISCORD_BRIDGE_USER_ID) {
+    return {author: displayName, content};
+  }
+
+  const lines = content.split('\n');
+  const firstLine = lines[0];
+
+  if (firstLine && firstLine.startsWith("**[Discord] ") && firstLine.endsWith(":")) {
+    const username = firstLine.slice(12, -3).trim();
+    const remainingContent = lines.slice(1).join('\n');
+    return {
+      author: `${username} (via Discord)`,
+      content: remainingContent
+    };
+  }
+
+  return {author: displayName, content};
+}
+
 function ChatPageInner() {
   const { token, user, loading } = useAuth();
   const router = useRouter();
@@ -471,16 +496,23 @@ function ChatPageInner() {
         const data: DbMessage[] = await r.json();
         if (!Array.isArray(data)) return;
 
-        const mapped: Message[] = await Promise.all(data.map(async (m) => ({
+      const mapped: Message[] = await Promise.all(data.map(async (m) => {
+        const parsed = parseDiscordBridgeMessage(
+            m.user_id,
+            m.content,
+            m.profiles?.display_name ?? "Unknown"
+        );
+        return {
           id: m.id,
-          author: m.profiles?.display_name ?? "Unknown",
+          author: parsed.author,
           authorId: m.user_id,
-          content: m.content,
+          content: parsed.content,
           time: formatTimestamp(m.created_at),
           createdAt: m.created_at,
-        })));
+        };
+      }));
 
-        setMessages((prev) => ({ ...prev, [active]: mapped }));
+      setMessages((prev) => ({ ...prev, [active]: mapped }));
 
       const messageIds = data.map((m) => m.id);
       if (messageIds.length > 0) {
@@ -541,13 +573,18 @@ function ChatPageInner() {
               const channelId = active; // capture before any await
               const record = payload.new as Omit<DbMessage, "profiles">;
               const displayName = await getDisplayName(record.user_id);
+              const parsed = parseDiscordBridgeMessage(
+                  record.user_id,
+                  record.content,
+                  displayName
+              );
               setMessages((prev) => ({
                 ...prev,
                 [channelId]: [...(prev[channelId] ?? []), {
                   id: record.id,
-                  author: displayName,
+                  author: parsed.author,
                   authorId: record.user_id,
-                  content: record.content,
+                  content: parsed.content,
                   time: formatTimestamp(record.created_at),
                   createdAt: record.created_at,
                   reactions: [],
