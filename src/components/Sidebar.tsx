@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Hash, X } from "lucide-react";
+import {Hash, Settings2, X} from "lucide-react";
 import Link from "next/link";
 
 type Channel = { id: string; name: string; description: string };
@@ -22,6 +22,12 @@ function Logo() {
       <span className="text-blue font-black" style={{ fontFamily: "Galano-Grotesque, Arial, sans-serif", fontSize: "1.2rem", letterSpacing: "-0.03em", textShadow: "0 0 16px #54f4d055" }}>
         Luminous
       </span>
+        <Link
+            className="shrink-0 p-1 rounded-full hover:bg-darker-blue/15 transition-all cursor-pointer"
+            href="/manage"
+        >
+            <Settings2 size={18} className="text-darker-blue/70" />
+        </Link>
     </div>
   );
 }
