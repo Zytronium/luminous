@@ -70,6 +70,10 @@ export default function AuthPage() {
       setStatus({ type: "error", message: "Passwords do not match." });
       return;
     }
+    if (signupPassword.toLowerCase().includes("password")) {
+      setStatus({ type: "error", message: "Passwords cannot contain the word 'password'." });
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/signup`, {
