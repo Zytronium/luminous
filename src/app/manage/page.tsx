@@ -1,23 +1,4 @@
 "use client";
-
-/**
- * Luminous – Admin Panel
- * /app/admin/page.tsx  (or wherever you mount it)
- *
- * NOTE: This component expects a GET /api/permissions endpoint that returns
- *       { id, code, name, description }[]. If that route doesn't exist yet,
- *       add a simple handler in your Express router:
- *
- *         router.get("/", requireAuth, async (_req, res) => {
- *           const supabase = createSupabaseAdmin();
- *           const { data, error } = await supabase.from("permissions").select("*").order("code");
- *           if (error) return res.status(500).json({ error: error.message });
- *           res.json(data);
- *         });
- *
- *       Until then the panel degrades gracefully by deriving codes from role data.
- */
-
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
