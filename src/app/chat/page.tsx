@@ -59,6 +59,7 @@ type Message = {
   time: string;
   createdAt: string;
   reactions?: Reaction[];
+  platform?: string;
 };
 
 type InsertBroadcastPayload = {
@@ -152,7 +153,8 @@ function fuzzyMatch(query: string, target: string): boolean {
 
 function parseDiscordBridgeMessage(userId: string, content: string, displayName: string): {
   author: string;
-  content: string
+  content: string;
+  platform?: string;
 } {
   const DISCORD_BRIDGE_USER_ID = "35c4a103-d94e-4677-a34f-628eb8b2a241";
 
@@ -167,8 +169,9 @@ function parseDiscordBridgeMessage(userId: string, content: string, displayName:
     const username = firstLine.slice(12, -3).trim();
     const remainingContent = lines.slice(1).join('\n');
     return {
-      author: `${username} (via Discord)`,
-      content: remainingContent
+      author: username,
+      content: remainingContent,
+      platform: "Discord"
     };
   }
 
@@ -575,6 +578,7 @@ function ChatPageInner() {
           content: parsed.content,
           time: formatTimestamp(m.created_at),
           createdAt: m.created_at,
+          platform: parsed.platform,
         };
       }));
 
@@ -654,6 +658,7 @@ function ChatPageInner() {
                   time: formatTimestamp(record.created_at),
                   createdAt: record.created_at,
                   reactions: [],
+                  platform: parsed.platform,
                 }],
               }));
 
@@ -1149,14 +1154,20 @@ function ChatPageInner() {
               <div className="flex flex-row items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-blue flex items-center justify-center shrink-0">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-neon-teal">
-                    <circle cx="12" cy="8" r="4" fill="currentColor" />
-                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" fill="currentColor" />
+                    <circle cx="12" cy="8" r="4" fill="currentColor"/>
+                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" fill="currentColor"/>
                   </svg>
                 </div>
-                <span className="text-sm font-semibold text-darker-blue dark:text-beige truncate flex-1">
+                <span className="text-sm font-semibold text-darker-blue dark:text-beige truncate">
                   {msg.author}
                 </span>
-                <span className="text-xs text-darker-blue/75 dark:text-beige/75 shrink-0">
+                {msg.platform && (
+                    <span
+                        className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-teal/20 text-teal border border-teal/40 shrink-0">
+                    {msg.platform}
+                  </span>
+                )}
+                <span className="text-xs text-darker-blue/75 dark:text-beige/75 shrink-0 ml-auto">
                   {msg.time}
                 </span>
               </div>
