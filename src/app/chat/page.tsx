@@ -11,8 +11,20 @@ import MessageHover from "@/components/MessageHover";
 import MessageReactions from "@/components/MessageReactions";
 import Image from "next/image";
 import { EmojiClickData, Theme } from 'emoji-picker-react';
-import { marked } from "marked";
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github-dark.css';
+import { marked, Renderer } from "marked";
 import DOMPurify from "dompurify";
+
+// Code block syntax highlihging | NOTE: must specifiy a language when usitilzing feature, i.e. "```py" or "```python"
+const renderer = new Renderer();
+renderer.code = ({ text, lang }) => {
+  const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
+  const highlighted = hljs.highlight(text, { language }).value;
+  return `<pre class="hljs-pre"><code class="hljs language-${language}">${highlighted}</code></pre>`;
+};
+
+marked.setOptions({ renderer });
 
 // Lazy load the picker to match your MessageHover pattern
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
