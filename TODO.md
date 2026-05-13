@@ -39,3 +39,4 @@
 # Bugs
 - Clicking on a message notification fails to scroll to the message
 - Notification sounds play both in browser and electron app if both are open and logged in to the same user.
+- Messages sometimes load from the wrong time and appear to attempt to load twice upon loading a channel
