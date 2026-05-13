@@ -23,11 +23,12 @@ interface MessageHoverProps {
     onEdit: (messageId: string) => void;
     onDelete: (messageId: string) => void;
 	onReact: (messageId: string, emoji: string) => void;
+	onReply: (messageId: string) => void;
     onMenuOpen?: () => void;
     onMenuClose?: () => void;
 }
 
-export default function MessageHover({ messageId, authorId, userId, onEdit, onDelete, onReact, onMenuOpen, onMenuClose }: MessageHoverProps) {
+export default function MessageHover({ messageId, authorId, userId, onEdit, onDelete, onReply, onReact, onMenuOpen, onMenuClose }: MessageHoverProps) {
     const isOwnMessage = authorId === userId;
     const [showReactions, setShowReactions] = useState(false);
     const [currentIcon, setCurrentIcon] = useState(DefaultIcon);
@@ -108,7 +109,7 @@ export default function MessageHover({ messageId, authorId, userId, onEdit, onDe
             )}
 
             <button
-                onClick={() => console.log("Replying to:", messageId)}
+                onClick={() => onReply(messageId)}
                 className="hover:bg-teal/20 p-1.5 rounded-md transition-all active:scale-95 flex items-center justify-center"
                 title="Reply"
             >

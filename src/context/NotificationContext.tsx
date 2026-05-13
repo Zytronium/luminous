@@ -9,7 +9,7 @@ type Channel = { id: string; name: string };
 
 type InsertBroadcastPayload = {
     payload: {
-        record: { id: string; user_id: string; channel_id: string; content: string; created_at: string };
+        record: { id: string; user_id: string; channel_id: string; content: string; created_at: string; replies_to: string | null; };
         old_record: null;
         operation: string;
         schema: string;
@@ -154,12 +154,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 if (settingsRef.current.notification_preference === "none")
                     return;
 
-                // Skip if user notification preference is "mention" and message mentions this user
-                if (
-                    settingsRef.current.notification_preference === "mentions" &&
-                    !record.content.includes(`<@!${user?.id}>`) &&
-                    !record.content.includes("@everyone") // TODO: Ignore @everyone if sender doesn't have perms to ping @everyone
-                ) return;
+                // Skip if user notification preference is "mentions" and message doesn't mention or reply to this user
+                if (settingsRef.current.notification_preference === "mentions") {
+                    const isDirectMention =
+                        record.content.includes(`<@!${user?.id}>`) ||
+                        record.content.includes("@everyone"); // TODO: Ignore @everyone if sender doesn't have perms to ping @everyone
+
+                    const isReplyToMe = await (async () => {
+                        if (!record.replies_to || !user?.id)
+                            return false;
+                        const { data } = await supabase
+                            .from("messages")
+                            .select("user_id")
+                            .eq("id", record.replies_to)
+                            .single();
+                        return data?.user_id === user.id;
+                    })();
+
+                    if (!isDirectMention && !isReplyToMe)
+                        return;
+                }
 
                 const displayName = await getDisplayName(record.user_id);
                 const title = `${displayName} (#${ch.name})`;

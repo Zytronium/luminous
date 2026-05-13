@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, Suspense, lazy, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { SendHorizonal, Menu, Hash, Minus, Square, X, Check, Ban } from "lucide-react";
+import { SendHorizonal, Menu, Hash, Minus, Square, X, Check, Ban, Reply } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { createSupabaseClient } from "@/lib/supabase/client";
@@ -71,6 +71,9 @@ type Message = {
   time: string;
   createdAt: string;
   reactions?: Reaction[];
+  repliesTo?: string | null;
+  replyToAuthor?: string;
+  replyToContent?: string;
   platform?: string;
 };
 
@@ -212,6 +215,14 @@ function ChatPageInner() {
   const [currentIcon, setCurrentIcon] = useState(DefaultIcon);
   const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({});
   const [loadingMore, setLoadingMore] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+
+  function startReply(messageId: string) {
+    const msg = (messages[active] ?? []).find((m) => m.id === messageId);
+    if (msg)
+      setReplyingTo(msg);
+    inputRef.current?.focus();
+  }
 
   // Find `<@!user_id>` or `@everyone` and replace all instances of it with a styled user mention box of `@Display Name` or `@everyone`
   function parse_msg(text: string, currentUserId?: string): string {
@@ -365,6 +376,11 @@ function ChatPageInner() {
     });
   };
 
+  const handleSetActive = (id: string) => {
+    setReplyingTo(null);
+    setActive(id);
+  };
+
   // Logic to insert emoji at the cursor position
   const onEmojiClick = (emojiData: EmojiClickData) => {
     const cursor = inputRef.current?.selectionStart || 0;
@@ -475,7 +491,7 @@ function ChatPageInner() {
     if (!channelId || channels.length === 0) return;
 
     // Switch to the right channel
-    setActive(channelId);
+    handleSetActive(channelId);
 
     if (messageId) {
       pendingScrollRef.current = messageId;
@@ -518,7 +534,7 @@ function ChatPageInner() {
 
   useEffect(() => {
     if (channels.length > 0 && !active) {
-      setActive(channels[0].id);
+      handleSetActive(channels[0].id);
     }
   }, [channels]);
 
@@ -590,11 +606,55 @@ function ChatPageInner() {
           content: parsed.content,
           time: formatTimestamp(m.created_at),
           createdAt: m.created_at,
+          repliesTo: m.replies_to,
           platform: parsed.platform,
         };
       }));
+      const msgById = new Map(mapped.map((m) => [m.id, m]));
 
-      setMessages((prev) => ({ ...prev, [active]: mapped }));
+      // First pass: resolve from the current batch
+      let resolved = mapped.map((m) => {
+        if (!m.repliesTo) return m;
+        const parent = msgById.get(m.repliesTo);
+        return parent
+            ? {...m, replyToAuthor: parent.author, replyToContent: parent.content}
+            : m;
+      });
+
+      // Second pass: fetch any parents not in the batch
+      const missingIds = [...new Set(
+          resolved
+              .filter((m) => m.repliesTo && !m.replyToAuthor)
+              .map((m) => m.repliesTo!)
+      )];
+
+      if (missingIds.length > 0) {
+        const {data: parentRows} = await supabase
+            .from("messages")
+            .select("id, content, user_id, profiles(display_name)")
+            .in("id", missingIds);
+
+        if (parentRows) {
+          const parentMap = new Map(
+              parentRows.map((p: any) => [p.id, {
+                author: p.profiles?.display_name ?? "Unknown",
+                content: p.content,
+              }])
+          );
+          resolved = resolved.map((m) =>
+              m.repliesTo && !m.replyToAuthor && parentMap.has(m.repliesTo)
+                  ? {
+                    ...m, ...parentMap.get(m.repliesTo) && {
+                      replyToAuthor: parentMap.get(m.repliesTo)!.author,
+                      replyToContent: parentMap.get(m.repliesTo)!.content,
+                    }
+                  }
+                  : m
+          );
+        }
+      }
+
+      setMessages((prev) => ({...prev, [active]: resolved}));
 
       const messageIds = data.map((m) => m.id);
       if (messageIds.length > 0) {
@@ -660,7 +720,11 @@ function ChatPageInner() {
                   record.content,
                   displayName
               );
-              setMessages((prev) => ({
+              setMessages((prev) => {
+                const parent = record.replies_to
+                  ? (prev[channelId] ?? []).find((m) => m.id === record.replies_to)
+                  : undefined;
+                return {
                 ...prev,
                 [channelId]: [...(prev[channelId] ?? []), {
                   id: record.id,
@@ -671,8 +735,12 @@ function ChatPageInner() {
                   createdAt: record.created_at,
                   reactions: [],
                   platform: parsed.platform,
+                  repliesTo: record.replies_to ?? null,
+                  replyToAuthor: parent?.author,
+                  replyToContent: parent?.content,
                 }],
-              }));
+              };
+            });
 
               // Resolve any mention IDs not yet in the cache
               const mentionIds = [...record.content.matchAll(/<@!([0-9a-f-]+)>/g)]
@@ -707,6 +775,7 @@ function ChatPageInner() {
                 return { ...prev, [active]: list.filter((m) => m.id !== id) };
               });
               setEditingId((prev) => (prev === id ? null : prev));
+              setReplyingTo((prev) => (prev?.id === id ? null : prev));
             }
         )
         .on(
@@ -795,13 +864,53 @@ function ChatPageInner() {
       content: m.content,
       time: formatTimestamp(m.created_at),
       createdAt: m.created_at,
+      repliesTo: m.replies_to,
     }));
 
+    const msgById = new Map(mapped.map((m) => [m.id, m]));
+
+    // First pass: resolve from the current batch
+    let resolved = mapped.map((m) => {
+      if (!m.repliesTo) return m;
+      const parent = msgById.get(m.repliesTo);
+      return parent
+          ? { ...m, replyToAuthor: parent.author, replyToContent: parent.content }
+          : m;
+    });
+
+    // Second pass: fetch any parents not in the batch
+    const missingIds = [...new Set(
+        resolved
+            .filter((m) => m.repliesTo && !m.replyToAuthor)
+            .map((m) => m.repliesTo!)
+    )];
+
+    if (missingIds.length > 0) {
+      const { data: parentRows } = await supabase
+          .from("messages")
+          .select("id, content, user_id, profiles(display_name)")
+          .in("id", missingIds);
+
+      if (parentRows) {
+        const parentMap = new Map(
+            parentRows.map((p: any) => [p.id, {
+              author: p.profiles?.display_name ?? "Unknown",
+              content: p.content,
+            }])
+        );
+        resolved = resolved.map((m) =>
+            m.repliesTo && !m.replyToAuthor && parentMap.has(m.repliesTo)
+                ? { ...m, ...parentMap.get(m.repliesTo) && {
+                    replyToAuthor: parentMap.get(m.repliesTo)!.author,
+                    replyToContent: parentMap.get(m.repliesTo)!.content,
+                  }}
+                : m
+        );
+      }
+    }
+
     justPrependedRef.current = true;
-    setMessages((prev) => ({
-      ...prev,
-      [active]: [...mapped, ...(prev[active] ?? [])],
-    }));
+    setMessages((prev) => ({ ...prev, [active]: resolved }));
 
     if (data.length < MSGS_TO_LOAD)
       setHasMoreMessages((prev) => ({ ...prev, [active]: false }));
@@ -854,8 +963,10 @@ function ChatPageInner() {
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/message/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ channelId: active, content: rawText }),
+      body: JSON.stringify({ channelId: active, content: rawText, repliesTo: replyingTo?.id ?? null, }),
     });
+
+    setReplyingTo(null);
   }
 
   function insertMention(profile: { id: string; display_name: string }) {
@@ -1054,7 +1165,7 @@ function ChatPageInner() {
       <Sidebar
         channels={channels}
         active={active}
-        setActive={setActive}
+        setActive={handleSetActive}
         user={{ displayName: user?.displayName ?? "..." }}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -1142,14 +1253,14 @@ function ChatPageInner() {
                   isMentioned(msg.content, user?.id) ? "bg-teal/25 dark:bg-teal/15 border-l-2 border-teal" : ""
                 }`}>
               {editingId !== msg.id && (
-<div
-    data-message-hover
-    className={`absolute right-4 top-2 transition-opacity z-20 ${
-        pinnedMenuId === msg.id
-            ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100"
-    }`}
->
+              <div
+                  data-message-hover
+                  className={`absolute right-4 top-2 transition-opacity z-20 ${
+                      pinnedMenuId === msg.id
+                          ? "opacity-100"
+                          : "opacity-0 group-hover:opacity-100"
+                  }`}
+              >
                   <MessageHover
                     messageId={msg.id}
                     authorId={msg.authorId}
@@ -1157,10 +1268,25 @@ function ChatPageInner() {
                     onEdit={startEdit}
                     onDelete={handleDelete}
                     onReact={handleReact}
+                    onReply={startReply}
                     onMenuOpen={() => setPinnedMenuId(msg.id)}
                     onMenuClose={() => setPinnedMenuId(null)}
                   />
                 </div>
+              )}
+
+              {msg.repliesTo && (
+                  <button
+                      className="flex items-center gap-1.5 ml-10 text-xs text-muted-blue/75 dark:text-beige/50 hover:text-blue dark:hover:text-teal transition-colors mb-0.5"
+                      onClick={() => {
+                        document.getElementById(`message-${msg.repliesTo}`)
+                            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }}
+                  >
+                    <Reply size={12} />
+                    <span className="font-semibold">@{msg.replyToAuthor ? msg.replyToAuthor.replace(" ", " ") : "Unknown"}</span>
+                    <span className="truncate max-w-lg opacity-70">{msg.replyToContent ?? ""}</span>
+                  </button>
               )}
 
               <div className="flex flex-row items-center gap-2">
@@ -1283,7 +1409,7 @@ function ChatPageInner() {
               </div>
           )}
 
-          <div className="flex flex-row items-center gap-2 w-full">
+          <div className="flex flex-row items-end gap-2 w-full">
             <div className="relative flex-1 flex items-center">
               {mentionResults.length > 0 && (
                   <div className="absolute bottom-full left-0 mb-2 w-64 rounded-2xl border-2 border-teal/20 bg-beige dark:bg-dark-blue shadow-xl overflow-hidden z-50">
@@ -1303,49 +1429,58 @@ function ChatPageInner() {
                     ))}
                   </div>
               )}
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKey}
-                placeholder={activeChannel ? `Message #${activeChannel.name}` : ""}
-                disabled={!activeChannel}
-                rows={1}
-                className="flex-1 bg-transparent text-darker-blue dark:text-offwhite placeholder:text-darker-blue/40 dark:placeholder:text-beige/40 rounded-full h-11 border-2 border-teal/25 pl-5 pr-12 py-2.5 outline-none focus:border-teal/60 transition-colors text-sm resize-none disabled:opacity-40 min-w-0"
-              />
+              <div className="flex flex-col w-full">
+                {replyingTo && (
+                    <div className="flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg bg-teal/10 border border-teal/20 text-xs text-teal">
+                      <span>Replying to <strong>{replyingTo.author}</strong>: {replyingTo.content.slice(0, 120).trim()}{replyingTo.content.length > 120 ? "…" : ""}</span>
+                      <button onClick={() => setReplyingTo(null)}><X size={12} /></button>
+                    </div>
+                )}
+                <div className="relative flex items-center">
+                  <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKey}
+                    placeholder={activeChannel ? `Message #${activeChannel.name}` : ""}
+                    disabled={!activeChannel}
+                    rows={1}
+                    className="flex-1 bg-transparent text-darker-blue dark:text-offwhite placeholder:text-darker-blue/40 dark:placeholder:text-beige/40 rounded-full h-11 border-2 border-teal/25 pl-5 pr-12 py-2.5 outline-none focus:border-teal/60 transition-colors text-sm resize-none disabled:opacity-40 min-w-0 w-full"
+                  />
 
-              {/* Custom Image Emoji Trigger */}
+                  {/* Custom Image Emoji Trigger */}
+                  <button
+                    type="button"
+			  	  onMouseEnter={handleMouseEnter}
+			  	  onMouseLeave={handleMouseLeave}
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    disabled={!activeChannel}
+                    className="absolute right-4 p-1 hover:scale-110 active:scale-95 transition-all disabled:opacity-0 disabled:pointer-events-none"
+                  >
+                    <Image
+                      src={currentIcon}
+                      alt="emoji picker"
+                      width={24}
+                      height={24}
+                      className={`object-contain transition-all duration-150 transform hover:scale-110 ${
+                        showEmojiPicker ? 'opacity-100' : 'opacity-60 hover:opacity-100'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
               <button
-                type="button"
-				onMouseEnter={handleMouseEnter}
-				onMouseLeave={handleMouseLeave}
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                disabled={!activeChannel}
-                className="absolute right-4 p-1 hover:scale-110 active:scale-95 transition-all disabled:opacity-0 disabled:pointer-events-none"
+                onClick={send}
+                disabled={!input.trim() || !activeChannel}
+                className="shrink-0 w-11 h-11 rounded-full bg-teal flex items-center justify-center hover:brightness-90 transition-all disabled:opacity-40"
               >
-                <Image
-                  src={currentIcon}
-                  alt="emoji picker"
-                  width={24}
-                  height={24}
-                  className={`object-contain transition-all duration-150 transform hover:scale-110 ${
-                    showEmojiPicker ? 'opacity-100' : 'opacity-60 hover:opacity-100'
-                  }`}
-                />
+                <SendHorizonal className="text-darker-blue" size={24} />
               </button>
             </div>
-
-            <button
-              onClick={send}
-              disabled={!input.trim() || !activeChannel}
-              className="shrink-0 w-11 h-11 rounded-full bg-teal flex items-center justify-center hover:brightness-90 transition-all disabled:opacity-40"
-            >
-              <SendHorizonal className="text-darker-blue" size={24} />
-            </button>
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
