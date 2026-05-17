@@ -17,11 +17,9 @@
 - Add audit log for mod actions
 - Add mod queue for reports
 - Add unread message tracking and jump-to-unread button
-- Add code block syntax highlighting
 - Add polls
 - Add message threads
 - Add message pins
-- Add message replies
 - Add channel-specific notification overrides
 - Add member list on a right side panel
 - Add message search
@@ -39,4 +37,4 @@
 # Bugs
 - Clicking on a message notification fails to scroll to the message
 - Notification sounds play both in browser and electron app if both are open and logged in to the same user.
-- Messages sometimes load from the wrong time and appear to attempt to load twice upon loading a channel
+- ~~Messages sometimes load from the wrong time and appear to attempt to load twice upon loading a channel~~ (maybe fixed)

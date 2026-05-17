@@ -832,7 +832,7 @@ function ChatPageInner() {
   }, [active, token, getDisplayName]);
 
   const loadMoreMessages = useCallback(async () => {
-    if (!token || !active || loadingMore || hasMoreMessages[active] === false) return;
+    if (!token || !active || loadingMore || !hasMoreMessages[active]) return;
     const oldest = messages[active]?.[0]?.id;
     if (!oldest) return;
 
