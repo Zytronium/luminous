@@ -31,6 +31,9 @@ const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 const INITIAL_MSG_COUNT = 50;
 const MSGS_TO_LOAD = 25;
+const URL_REGEX = /(?<!\]\()https?:\/\/[^\s<>"]+/g;
+const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i;
+const VIDEO_EXTS = /\.(mp4|webm|ogg|mov)(\?.*)?$/i;
 
 const DefaultIcon = "/face-grin.png";
 const ReactIcons = [
@@ -112,6 +115,19 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function extractUrls(content: string): string[] {
+  return [...content.matchAll(URL_REGEX)].map(m => m[0]);
+}
+
+function classifyUrl(url: string): "image" | "video" | "link" {
+  if (IMAGE_EXTS.test(url))
+    return "image";
+  if (VIDEO_EXTS.test(url))
+    return "video";
+
+  return "link";
+}
+
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
   const now = new Date();
@@ -191,6 +207,105 @@ function parseDiscordBridgeMessage(userId: string, content: string, displayName:
   }
 
   return {author: displayName, content};
+}
+
+function EmbedComponent({ url }: { url: string }) {
+  const linkClassification = classifyUrl(url);
+  const [metadata, setMetadata] = useState<{
+    title?: string;
+    description?: string;
+    image?: string;
+    siteName?: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (linkClassification === "link") {
+      setLoading(true);
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/og?url=${encodeURIComponent(url)}`)
+          .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setMetadata(data); })
+        .catch(() => {})
+          .finally(() => setLoading(false));
+    }
+  }, [url, linkClassification]);
+
+  switch (linkClassification) {
+    case "image":
+      return <img src={url} alt="Image" className="max-w-sm max-h-64 rounded-lg ml-10 mt-1 object-contain" />;
+
+    case "video":
+      return (
+          <video controls className="max-w-sm max-h-64 rounded-lg ml-10 mt-1">
+            <source src={url}/>
+          </video>
+      );
+
+    default:
+      if (loading) {
+        return (
+            <div className="max-w-md ml-10 mt-1 p-3 rounded-lg border border-teal/20 bg-beige/30 dark:bg-dark-blue/30 animate-pulse">
+              <div className="h-4 bg-teal/20 rounded w-3/4 mb-2"></div>
+              <div className="h-3 bg-teal/10 rounded w-full"></div>
+            </div>
+        );
+      }
+
+      if (metadata) {
+        return (
+            <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block max-w-md ml-10 mt-1 p-3 rounded-lg border border-teal/30 bg-beige/50 dark:bg-dark-blue/50 hover:bg-beige/70 dark:hover:bg-dark-blue/70 transition-colors group"
+            >
+              {metadata.image && (
+                  <img
+                      src={metadata.image}
+                      alt={metadata.title || "Link preview"}
+                      className="w-full h-full object-cover rounded mb-2"
+                  />
+              )}
+              {metadata.title && (
+                  <div
+                      className="font-semibold text-sm text-darker-blue dark:text-offwhite mb-1 group-hover:text-teal dark:group-hover:text-teal transition-colors">
+                    {metadata.title}
+                  </div>
+              )}
+              {metadata.description && (
+                  <div className="text-xs text-darker-blue/70 dark:text-offwhite/70 mb-1 line-clamp-3">
+                    {metadata.description}
+                  </div>
+              )}
+              {metadata.siteName && (
+                  <div className="text-xs text-teal/60">
+                    {metadata.siteName}
+                  </div>
+              )}
+            </a>
+        );
+      }
+
+      return (
+          <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-blue dark:text-teal hover:underline break-all"
+          >
+            {url}
+          </a>
+      );
+  }
+}
+
+function MessageEmbeds({ content }: { content: string }) {
+  const urls = extractUrls(content);
+  return urls.map((url, i) => (
+    <div key={`${i}-${url}`} className="mt-2">
+      <EmbedComponent url={url}/>
+    </div>
+  ));
 }
 
 function ChatPageInner() {
@@ -1342,6 +1457,7 @@ function ChatPageInner() {
                       className="text-darker-blue dark:text-offwhite wrap-break-words ml-10 message-content"
                       dangerouslySetInnerHTML={{ __html: parse_msg(msg.content, user?.id) }}
                   />
+                  <MessageEmbeds content={msg.content}/>
                   <MessageReactions
                       reactions={msg.reactions || []}
                       userId={user?.id ?? ""}

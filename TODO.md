@@ -10,7 +10,6 @@
 - Verify backup emails\*
 - Allow creating and deleting channels and categories\*
 - Add file upload & embed support\*
-- Add link embeds in messages
 - Add direct messaging between other users\*
 - Allow blocking users (I sure hope no one has to use this)
 - Add roles and permissions\*
@@ -39,3 +38,4 @@
 # Bugs
 - Clicking on a message notification fails to scroll to the message
 - Notification sounds play both in browser and electron app if both are open and logged in to the same user.
+- Markdown links don't embed
