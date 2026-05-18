@@ -1454,7 +1454,7 @@ function ChatPageInner() {
               ) : (
                 <>
                   <div
-                      className="text-darker-blue dark:text-offwhite wrap-break-words ml-10 message-content"
+                      className="text-darker-blue dark:text-offwhite wrap-break-word ml-10 message-content"
                       dangerouslySetInnerHTML={{ __html: parse_msg(msg.content, user?.id) }}
                   />
                   <MessageEmbeds content={msg.content}/>
