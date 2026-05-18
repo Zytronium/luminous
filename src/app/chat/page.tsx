@@ -972,15 +972,23 @@ function ChatPageInner() {
       return;
     }
 
-    const mapped: Message[] = data.map((m) => ({
-      id: m.id,
-      author: m.profiles?.display_name ?? "Unknown",
-      authorId: m.user_id,
-      content: m.content,
-      time: formatTimestamp(m.created_at),
-      createdAt: m.created_at,
-      repliesTo: m.replies_to,
-    }));
+    const mapped: Message[] = data.map((m) => {
+      const parsed = parseDiscordBridgeMessage(
+          m.user_id,
+          m.content,
+          m.profiles?.display_name ?? "Unknown"
+      );
+      return {
+        id: m.id,
+        author: parsed.author,
+        authorId: m.user_id,
+        content: parsed.content,
+        time: formatTimestamp(m.created_at),
+        createdAt: m.created_at,
+        repliesTo: m.replies_to,
+        platform: parsed.platform,
+      };
+    });
 
     const msgById = new Map(mapped.map((m) => [m.id, m]));
 
@@ -1025,7 +1033,7 @@ function ChatPageInner() {
     }
 
     justPrependedRef.current = true;
-    setMessages((prev) => ({ ...prev, [active]: resolved }));
+    setMessages((prev) => ({ ...prev, [active]: [...resolved, ...(prev[active] ?? [])] }));
 
     if (data.length < MSGS_TO_LOAD)
       setHasMoreMessages((prev) => ({ ...prev, [active]: false }));
