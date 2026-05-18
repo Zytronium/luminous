@@ -232,11 +232,11 @@ function EmbedComponent({ url }: { url: string }) {
 
   switch (linkClassification) {
     case "image":
-      return <img src={url} alt="Image" className="max-w-sm max-h-64 rounded-lg ml-10 mt-1 object-contain" />;
+      return <img src={url} alt="Image" className="max-w-[min(64rem,90%)] md:max-w-[min(64rem,80%)] max-h-128 rounded-lg ml-10 mt-1 object-contain" />;
 
     case "video":
       return (
-          <video controls className="max-w-sm max-h-64 rounded-lg ml-10 mt-1">
+          <video controls className="max-w-[min(64rem,90%)] md:max-w-[min(64rem,80%)] max-h-128 rounded-lg ml-10 mt-1">
             <source src={url}/>
           </video>
       );
