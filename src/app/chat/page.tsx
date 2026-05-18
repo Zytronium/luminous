@@ -31,7 +31,6 @@ const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 const INITIAL_MSG_COUNT = 50;
 const MSGS_TO_LOAD = 25;
-const URL_REGEX = /(?<!\]\()https?:\/\/[^\s<>"]+/g;
 const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i;
 const VIDEO_EXTS = /\.(mp4|webm|ogg|mov)(\?.*)?$/i;
 
@@ -116,7 +115,22 @@ function escapeHtml(str: string): string {
 }
 
 function extractUrls(content: string): string[] {
-  return [...content.matchAll(URL_REGEX)].map(m => m[0]);
+  const urls: string[] = [];
+
+  // Extract URLs from markdown links [text](url)
+  const mdLinkRegex = /\[.*?\]\((https?:\/\/[^\s<>"()]+)\)/g;
+  for (const match of content.matchAll(mdLinkRegex)) {
+    urls.push(match[1]);
+  }
+
+  // Extract bare URLs (still excluding markdown link syntax to avoid duplicates)
+  const bareUrlRegex = /(?<!\]\()https?:\/\/[^\s<>"]+/g;
+  for (const match of content.matchAll(bareUrlRegex)) {
+    urls.push(match[0]);
+  }
+
+  // Deduplicate in case the same URL appears both bare and as a markdown link
+  return [...new Set(urls)];
 }
 
 function classifyUrl(url: string): "image" | "video" | "link" {
