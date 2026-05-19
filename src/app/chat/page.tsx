@@ -888,7 +888,7 @@ function ChatPageInner() {
             (payload) => {
               const { id, content } = payload.new as { id: string; content: string };
               setMessages((prev) => {
-                const list = prev[active] ?? [];
+                const list = prev[activeRef.current] ?? [];
                 return { ...prev, [active]: list.map((m) => m.id === id ? { ...m, content } : m) };
               });
             }
@@ -900,7 +900,7 @@ function ChatPageInner() {
               const id = (payload.old as { id: string }).id;
               if (!id) return;
               setMessages((prev) => {
-                const list = prev[active] ?? [];
+                const list = prev[activeRef.current] ?? [];
                 return { ...prev, [active]: list.filter((m) => m.id !== id) };
               });
               setEditingId((prev) => (prev === id ? null : prev));
@@ -955,7 +955,13 @@ function ChatPageInner() {
               setMessages((prev) => applyReactionDelete(prev, message_id, user_id, emoji));
             }
         )
-        .subscribe();
+        .subscribe((status, err) => {
+          if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+            console.warn('Realtime channel dropped, reconnecting...', err);
+            supabase.removeChannel(channel);
+            channel.subscribe();
+          }
+        });
 
     return () => { supabase.removeChannel(channel); };
   }, [active, token, getDisplayName]);

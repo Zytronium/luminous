@@ -39,4 +39,4 @@
 - Clicking on a message notification fails to scroll to the message
 - Notification sounds play both in browser and electron app if both are open and logged in to the same user.
 - Videos in metadata don't embed
-- Realtime stops listening after a long while (several minutes to hours; unsure how long)
+- ~~Realtime stops listening after a long while (several minutes to hours; unsure how long)~~ (Maybe fixed)

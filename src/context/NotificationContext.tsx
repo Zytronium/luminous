@@ -192,7 +192,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 audioRef.current?.play().catch(() => {});
             });
 
-            sub.subscribe();
+            sub.subscribe((status, err) => {
+                if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+                    console.warn(`Notification channel ${ch.id} dropped, reconnecting...`, err);
+                    supabase.removeChannel(sub);
+                    sub.subscribe();
+                }
+            });
+
             return sub;
         });
 
