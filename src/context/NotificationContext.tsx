@@ -194,9 +194,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
             sub.subscribe((status, err) => {
                 if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-                    console.warn(`Notification channel ${ch.id} dropped, reconnecting...`, err);
-                    supabase.removeChannel(sub);
-                    sub.subscribe();
+                    console.warn(`Notification channel ${ch.id} dropped (${status === 'TIMED_OUT' ? "timed out" : "channel error"}), reconnecting...`, err);
+                    setTimeout(() => sub.subscribe(), 3000);
                 }
             });
 

@@ -957,9 +957,8 @@ function ChatPageInner() {
         )
         .subscribe((status, err) => {
           if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-            console.warn('Realtime channel dropped, reconnecting...', err);
-            supabase.removeChannel(channel);
-            channel.subscribe();
+            console.warn(`Realtime channel dropped (${status === 'TIMED_OUT' ? "timed out" : "channel error"}), reconnecting...`, err);
+            setTimeout(() => channel.subscribe(), 3000);
           }
         });
 
