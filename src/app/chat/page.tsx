@@ -958,11 +958,24 @@ function ChatPageInner() {
         .subscribe((status, err) => {
           if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
             console.warn(`Realtime channel dropped (${status === 'TIMED_OUT' ? "timed out" : "channel error"}), reconnecting...`, err);
-            setTimeout(() => channel.subscribe(), 3000);
+            // Remove the stale channel and re-subscribe with a fresh one so the
+            // closure over `channel` doesn't hold a broken reference.
+            supabase.removeChannel(channel).then(() => {
+              channel.subscribe();
+            });
           }
         });
 
-    return () => { supabase.removeChannel(channel); };
+    // Send a lightweight heartbeat every 40 s so NAT/load-balancer idle
+    // timeouts and Electron's network suspension don't silently kill the socket.
+    const heartbeat = setInterval(() => {
+      channel.send({ type: "broadcast", event: "heartbeat", payload: {} }).catch(() => {});
+    }, 40_000);
+
+    return () => {
+      clearInterval(heartbeat);
+      supabase.removeChannel(channel);
+    };
   }, [active, token, getDisplayName]);
 
   const loadMoreMessages = useCallback(async () => {

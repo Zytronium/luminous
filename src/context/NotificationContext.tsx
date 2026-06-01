@@ -131,6 +131,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (!token || !Array.isArray(channels) || channels.length === 0)
             return;
 
+        const heartbeats: ReturnType<typeof setInterval>[] = [];
+
         const subs = channels.map((ch) => {
             const sub = supabase.channel(`channel:${ch.id}:messages`, {
                 config: { private: true },
@@ -195,14 +197,28 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             sub.subscribe((status, err) => {
                 if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
                     console.warn(`Notification channel ${ch.id} dropped (${status === 'TIMED_OUT' ? "timed out" : "channel error"}), reconnecting...`, err);
-                    setTimeout(() => sub.subscribe(), 3000);
+                    // Remove and re-subscribe rather than calling .subscribe() on a
+                    // potentially broken channel object.
+                    supabase.removeChannel(sub).then(() => {
+                        sub.subscribe();
+                    });
                 }
             });
+
+            // Keep the socket alive through NAT/load-balancer idle timeouts and
+            // Electron network suspension by sending a heartbeat every 40 s.
+            const hb = setInterval(() => {
+                sub.send({ type: "broadcast", event: "heartbeat", payload: {} }).catch(() => {});
+            }, 40_000);
+            heartbeats.push(hb);
 
             return sub;
         });
 
-        return () => { subs.forEach((s) => supabase.removeChannel(s)); };
+        return () => {
+            heartbeats.forEach(clearInterval);
+            subs.forEach((s) => supabase.removeChannel(s));
+        };
     }, [channels, token, user?.id, parse_msg]);
 
     return (
