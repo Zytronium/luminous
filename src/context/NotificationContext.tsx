@@ -106,10 +106,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
         (async () => {
             try {
-                console.log("[SW debug] VAPID key:", process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
-                console.log("[SW debug] isElectron:", isElectronRef.current);
-                console.log("[SW debug] SW support:", "serviceWorker" in navigator, "PushManager" in window);
-
                 const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
                 await navigator.serviceWorker.ready;
 
@@ -118,8 +114,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
                 const existing = await reg.pushManager.getSubscription();
                 const vapidKey = urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!);
-                console.log("[SW debug] encoded key length:", vapidKey.length); // should be exactly 65
-                console.log("[SW debug] encoded key [0]:", vapidKey[0]); // should be 4 (uncompressed EC point)
                 const sub = existing ?? await reg.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: vapidKey,
