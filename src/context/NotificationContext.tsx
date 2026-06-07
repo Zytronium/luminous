@@ -21,10 +21,12 @@ const supabase = createSupabaseClient();
 
 type NotificationContextValue = {
     setActiveChannel: (id: string | null) => void;
+    pushEndpointRef: React.RefObject<string | null>;
 };
 
 const NotificationContext = createContext<NotificationContextValue>({
     setActiveChannel: () => {},
+    pushEndpointRef: { current: null },
 });
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
@@ -37,6 +39,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const isElectronRef = useRef<boolean>(false);
     const settingsRef = useRef(settings);
     const profileCache = useRef<Map<string, string>>(new Map());
+    const pushEndpointRef = useRef<string | null>(null);
     const router = useRouter();
 
     const setActiveChannel = useCallback((id: string | null) => {
@@ -91,6 +94,64 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             Notification.requestPermission();
         }
     }, []);
+
+    // Register the service worker and subscribe to Web Push (browser only).
+    // Skipped entirely in Electron, Electron uses its own native notify path.
+    useEffect(() => {
+        if (loading || !token) return;
+        if (isElectronRef.current) return;
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+        let active = true;
+
+        (async () => {
+            try {
+                console.log("[SW debug] VAPID key:", process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+                console.log("[SW debug] isElectron:", isElectronRef.current);
+                console.log("[SW debug] SW support:", "serviceWorker" in navigator, "PushManager" in window);
+
+                const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+                await navigator.serviceWorker.ready;
+
+                const permission = await Notification.requestPermission();
+                if (permission !== "granted") return;
+
+                const existing = await reg.pushManager.getSubscription();
+                const vapidKey = urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!);
+                console.log("[SW debug] encoded key length:", vapidKey.length); // should be exactly 65
+                console.log("[SW debug] encoded key [0]:", vapidKey[0]); // should be 4 (uncompressed EC point)
+                const sub = existing ?? await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: vapidKey,
+                });
+
+                if (!active) return;
+                pushEndpointRef.current = sub.endpoint;
+                // Notify PushUnsubscribeGlue (which lives outside this provider)
+                // so it can unsubscribe this endpoint on logout.
+                (window as any).__luminous_setPushEndpoint?.(sub.endpoint);
+
+                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/push/subscribe`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        endpoint: sub.endpoint,
+                        keys: {
+                            p256dh: arrayBufferToBase64(sub.getKey("p256dh")!),
+                            auth:   arrayBufferToBase64(sub.getKey("auth")!),
+                        },
+                    }),
+                });
+            } catch (err) {
+                console.warn("[Notifications] SW/push registration failed:", err);
+            }
+        })();
+
+        return () => { active = false; };
+    }, [loading, token]);
 
 
     // Register the click handler on mount
@@ -197,8 +258,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             sub.subscribe((status, err) => {
                 if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
                     console.warn(`Notification channel ${ch.id} dropped (${status === 'TIMED_OUT' ? "timed out" : "channel error"}), reconnecting...`, err);
-                    // Remove and re-subscribe rather than calling .subscribe() on a
-                    // potentially broken channel object.
                     supabase.removeChannel(sub).then(() => {
                         sub.subscribe();
                     });
@@ -222,10 +281,30 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }, [channels, token, user?.id, parse_msg]);
 
     return (
-        <NotificationContext.Provider value={{ setActiveChannel }}>
+        <NotificationContext.Provider value={{ setActiveChannel, pushEndpointRef }}>
             {children}
         </NotificationContext.Provider>
     );
 }
 
 export const useNotifications = () => useContext(NotificationContext);
+
+// Utilities
+
+/** Converts a URL-safe base64 VAPID public key to the Uint8Array that
+ *  PushManager.subscribe() expects as applicationServerKey. */
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64);
+    const buf = new ArrayBuffer(raw.length);
+    const arr = new Uint8Array(buf);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+}
+
+/** Converts an ArrayBuffer (from PushSubscription.getKey) to a base64 string
+ *  suitable for sending to the server. */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}

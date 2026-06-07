@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AuthProvider } from "@/context/AuthContext";
-import TitleBar from "@/components/Titlebar";
-import {NotificationProvider} from "@/context/NotificationContext";
+import { PushUnsubscribeGlue } from "@/components/PushUnsubscribeGlue";
 
 export const metadata: Metadata = {
   title: "Luminous - The chat app for Atlas School",
   description: "Exclusive chat app for students and graduates of Atlas School",
 };
 
-// Runs before React hydrates — reads the localStorage settings cache written
-// by AuthContext so the correct theme and reduce-motion state are applied
-// before the first paint, eliminating any flash of the wrong theme.
 const themeScript = `
 (function () {
   try {
@@ -25,7 +20,6 @@ const themeScript = `
       return;
     }
   } catch (_) {}
-  // No cache yet (first visit / logged out) — fall back to OS preference
   if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
     document.documentElement.classList.add('dark');
   }
@@ -43,14 +37,9 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased flex flex-col h-screen w-screen overflow-hidden">
-        <AuthProvider>
-          <NotificationProvider>
-            <TitleBar />
-            <div className="flex-1 flex flex-col h-screen w-screen overflow-auto">
-              {children}
-            </div>
-          </NotificationProvider>
-        </AuthProvider>
+        <PushUnsubscribeGlue>
+          {children}
+        </PushUnsubscribeGlue>
       </body>
     </html>
   );

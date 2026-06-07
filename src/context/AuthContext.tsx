@@ -78,7 +78,15 @@ function clearSettingsCache() {
 const AuthContext = createContext<AuthContextType | null>(null);
 const supabase = createSupabaseClient();
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+  onBeforeSignOut,
+}: {
+  children: ReactNode;
+  /** Optional async hook called before signOut — use it to unsubscribe from
+   *  Web Push so logged-out browsers stop receiving notifications. */
+  onBeforeSignOut?: () => Promise<void>;
+}) {
   const [user, setUser]                     = useState<User | null>(null);
   const [session, setSession]               = useState<Session | null>(null);
   const [loading, setLoading]               = useState(true);
@@ -163,7 +171,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setSettings(SETTINGS_DEFAULTS);
     clearSettingsCache();
+    // Run the pre-signout hook (e.g. Web Push unsubscribe) then sign out.
+    // Fire-and-forget, we don't block the UI on this.
+    (onBeforeSignOut?.() ?? Promise.resolve()).finally(() => {
     supabase.auth.signOut();
+    });
   }
 
   /**
